@@ -10,26 +10,39 @@ Server Actions for both the UI and the backend, Postgres via Drizzle ORM,
 cookie-based sessions. No separate API server, so it deploys to Vercel as one
 project.
 
+## Live demo
+
+**App:** https://vendra-2b1sleow8-aksharma127s-projects.vercel.app/login
+**Repo:** https://github.com/Aksharma127/vendra
+
 ## Demo accounts
 
-Seeded with two companies (Kigma Manufacturing, Kigma Trading), four
+Seeded with two companies (KIG Manufacturing, KIG Trading Co.), four
 divisions, four vendors, and six users. Password for all: `vendra123`.
 
 | Email | Role | Notes |
 |---|---|---|
 | priya@vendra.demo | Employee | Raises requests |
-| rahul@vendra.demo | Division Manager | Approves at division level (Plant Ops, Kigma Manufacturing) |
+| rahul@vendra.demo | Division Manager | Approves at division level (Plant Ops, KIG Manufacturing) |
 | meera@vendra.demo | Finance Approver | Approves at finance level |
 | arjun@vendra.demo | Procurement Officer | Issues purchase orders |
 | zara@vendra.demo | Auditor | Read-only, audit trail + reports |
 | admin@vendra.demo | Admin | Structural admin only — no visibility into requests, orders, or spend (by design) |
 
-**Demo walkthrough:** log in as Priya, raise a request (keep it under
-₹5,00,000 total to avoid the two-approver finance rule, and add a
-justification if the amount is over ₹50,000) → sign out, log in as Rahul,
-approve it in the Approval Queue → sign out, log in as Meera, approve it →
-sign out, log in as Arjun, issue a purchase order against it → check the
-Audit Trail as Zara.
+**Pre-seeded data:** the database already has purchase requests sitting at
+every stage of the workflow — a draft, one awaiting division approval, one
+awaiting finance approval, one approved and awaiting a PO, one with an
+issued PO, one fully closed (PO delivered and closed), and one rejected —
+plus the two resulting purchase orders. Log in as any persona above and
+the dashboard, Approval Queue, and Purchase Orders pages already have
+real data to look at; no setup needed to see the app "used."
+
+**Demo walkthrough (to see the workflow run end to end):** log in as Priya,
+raise a request (keep it under ₹5,00,000 total to avoid the two-approver
+finance rule, and add a justification if the amount is over ₹50,000) →
+sign out, log in as Rahul, approve it in the Approval Queue → sign out,
+log in as Meera, approve it → sign out, log in as Arjun, issue a purchase
+order against it → check the Audit Trail as Zara.
 
 ## Local setup
 
@@ -83,6 +96,10 @@ variables, or afterward in the Vercel dashboard under **Settings →
 Environment Variables**, set:
 
 - `DATABASE_URL` — the same production connection string from step 1
+- `SESSION_SECRET` — any long random string
+- `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` — output of `openssl rand -base64 32`;
+  stabilizes Server Action reference encryption across serverless instances
+  (recommended by Next.js for this deployment shape, not required to run)
 
 Then either `vercel --prod`, or push to the branch Vercel is tracking (if
 you connect the project to a GitHub repo, every push to `main` deploys
@@ -91,6 +108,13 @@ automatically).
 No other configuration is needed — no build command overrides, no
 serverless function config. `next build` / `next start` (which Vercel runs
 automatically) are all this project needs.
+
+**Deployment Protection:** Vercel gates new projects behind an SSO wall by
+default, so anyone without access to your Vercel account gets redirected to
+a login page instead of the app. Before sharing the link, go to the
+project's **Settings → Deployment Protection** and turn it off (or scope it
+to preview deployments only) — then open the link in an incognito window to
+confirm it actually loads for someone who isn't you.
 
 ### 4. Re-running the seed later
 
