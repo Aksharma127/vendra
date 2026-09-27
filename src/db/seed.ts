@@ -131,11 +131,19 @@ async function main() {
     .onConflictDoNothing();
 
   // 9. Configuration
+  // Deterministic ids so re-running seed is idempotent - a plain unique index
+  // on (key, company_id) does NOT dedupe rows where company_id is NULL,
+  // since Postgres treats NULLs as distinct for uniqueness purposes.
   await db
     .insert(config)
     .values([
-      { key: "justificationThreshold", companyId: null, value: "50000" },
-      { key: "financeSecondaryThreshold", companyId: null, value: "500000" },
+      { id: ids.CONFIG_JUSTIFICATION_THRESHOLD_ID, key: "justificationThreshold", companyId: null, value: "50000" },
+      {
+        id: ids.CONFIG_FINANCE_SECONDARY_THRESHOLD_ID,
+        key: "financeSecondaryThreshold",
+        companyId: null,
+        value: "500000",
+      },
     ])
     .onConflictDoNothing();
 
