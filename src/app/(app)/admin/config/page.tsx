@@ -14,8 +14,10 @@ export default async function AdminConfigPage() {
   const canCreate = canOnMenu(ctx, "/admin/config", "create");
   const canEdit = canOnMenu(ctx, "/admin/config", "edit");
 
-  const allConfig = await db.select().from(config);
-  const allCompanies = await db.select({ id: companies.id, name: companies.name }).from(companies);
+  const [allConfig, allCompanies] = await Promise.all([
+    db.select().from(config),
+    db.select({ id: companies.id, name: companies.name }).from(companies),
+  ]);
   const companyById = new Map(allCompanies.map((c) => [c.id, c.name]));
 
   return (

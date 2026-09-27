@@ -67,7 +67,10 @@ export default async function DashboardPage() {
       : and(eq(purchaseRequests.companyId, companyId), eq(purchaseRequests.requesterId, ctx.userId))
     : undefined;
 
-  const allPRs = companyId && scopePr ? await db.select().from(purchaseRequests).where(scopePr) : [];
+  const [allPRs, openPOs] = await Promise.all([
+    companyId && scopePr ? db.select().from(purchaseRequests).where(scopePr) : Promise.resolve([]),
+    companyId ? db.select().from(purchaseOrders).where(eq(purchaseOrders.companyId, companyId)) : Promise.resolve([]),
+  ]);
 
   const pendingDivision = allPRs.filter((p) => p.status === "PENDING_DIVISION_APPROVAL").length;
   const pendingFinance = allPRs.filter((p) => p.status === "PENDING_FINANCE_APPROVAL").length;
@@ -76,9 +79,6 @@ export default async function DashboardPage() {
     .filter((p) => !["REJECTED", "WITHDRAWN", "CLOSED"].includes(p.status))
     .reduce((sum, p) => sum + Number(p.amount), 0);
 
-  const openPOs = companyId
-    ? await db.select().from(purchaseOrders).where(eq(purchaseOrders.companyId, companyId))
-    : [];
   const issuedPOs = openPOs.filter((p) => p.status === "ISSUED").length;
 
   return (

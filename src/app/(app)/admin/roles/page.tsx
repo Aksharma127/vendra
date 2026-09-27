@@ -14,9 +14,11 @@ export default async function AdminRolesPage() {
   const canCreate = canOnMenu(ctx, "/admin/roles", "create");
   const canEdit = canOnMenu(ctx, "/admin/roles", "edit");
 
-  const allRoles = await db.select().from(roles);
-  const allMenuItems = await db.select().from(menuItems);
-  const allPermissions = await db.select().from(roleMenuPermissions);
+  const [allRoles, allMenuItems, allPermissions] = await Promise.all([
+    db.select().from(roles),
+    db.select().from(menuItems),
+    db.select().from(roleMenuPermissions),
+  ]);
 
   const groupById = new Map(allMenuItems.map((m) => [m.id, m]));
   const leafItems = allMenuItems

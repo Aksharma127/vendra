@@ -18,6 +18,11 @@ const sql =
   postgres(connectionString, {
     max: 5,
     ssl: connectionString.includes("sslmode=require") ? "require" : undefined,
+    // Neon's pooled (-pooler) endpoint runs PgBouncer in transaction mode,
+    // which does not support server-side prepared statements across
+    // different underlying connections - leaving this on causes silent
+    // per-query overhead (and can error) against that endpoint.
+    prepare: false,
   });
 
 if (process.env.NODE_ENV !== "production") {

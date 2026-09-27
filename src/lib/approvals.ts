@@ -10,36 +10,33 @@ import type { AuthContext } from "@/lib/auth-context";
  * Used for the header notification badge.
  */
 export async function getPendingApprovalCount(ctx: AuthContext): Promise<number> {
-  const canDivision = ctx.capabilities.has("pr:approve-division");
-  const canFinance = ctx.capabilities.has("pr:approve-finance");
+  const canDivision = ctx.capabilities.has("pr:approve-division") && ctx.authorizedDivisionIds.length > 0;
+  const canFinance = ctx.capabilities.has("pr:approve-finance") && !!ctx.activeCompanyId;
 
-  let total = 0;
+  const [divisionRow, financeRow] = await Promise.all([
+    canDivision
+      ? db
+          .select({ n: count() })
+          .from(purchaseRequests)
+          .where(
+            and(
+              eq(purchaseRequests.status, "PENDING_DIVISION_APPROVAL"),
+              inArray(purchaseRequests.divisionId, ctx.authorizedDivisionIds)
+            )
+          )
+      : Promise.resolve([{ n: 0 }]),
+    canFinance
+      ? db
+          .select({ n: count() })
+          .from(purchaseRequests)
+          .where(
+            and(
+              eq(purchaseRequests.status, "PENDING_FINANCE_APPROVAL"),
+              eq(purchaseRequests.companyId, ctx.activeCompanyId!)
+            )
+          )
+      : Promise.resolve([{ n: 0 }]),
+  ]);
 
-  if (canDivision && ctx.authorizedDivisionIds.length > 0) {
-    const [row] = await db
-      .select({ n: count() })
-      .from(purchaseRequests)
-      .where(
-        and(
-          eq(purchaseRequests.status, "PENDING_DIVISION_APPROVAL"),
-          inArray(purchaseRequests.divisionId, ctx.authorizedDivisionIds)
-        )
-      );
-    total += row?.n ?? 0;
-  }
-
-  if (canFinance && ctx.activeCompanyId) {
-    const [row] = await db
-      .select({ n: count() })
-      .from(purchaseRequests)
-      .where(
-        and(
-          eq(purchaseRequests.status, "PENDING_FINANCE_APPROVAL"),
-          eq(purchaseRequests.companyId, ctx.activeCompanyId)
-        )
-      );
-    total += row?.n ?? 0;
-  }
-
-  return total;
+  return (divisionRow[0]?.n ?? 0) + (financeRow[0]?.n ?? 0);
 }

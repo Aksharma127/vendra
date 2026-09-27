@@ -17,25 +17,28 @@ export default async function AdminUsersPage() {
   const canEdit = canOnMenu(ctx, "/admin/users", "edit");
   const canDelete = canOnMenu(ctx, "/admin/users", "delete");
 
-  const allUsers = await db.select().from(users);
-  const allCompanies = await db.select({ id: companies.id, name: companies.name }).from(companies);
-  const allDivisions = await db.select({ id: divisions.id, name: divisions.name }).from(divisions);
-  const allRoles = await db.select().from(roles);
-
-  const assignments = await db
-    .select({
-      id: userRoles.id,
-      userId: userRoles.userId,
-      userName: users.name,
-      roleName: roles.name,
-      companyName: companies.name,
-      divisionName: divisions.name,
-    })
-    .from(userRoles)
-    .innerJoin(users, eq(userRoles.userId, users.id))
-    .innerJoin(roles, eq(userRoles.roleId, roles.id))
-    .leftJoin(companies, eq(userRoles.companyId, companies.id))
-    .leftJoin(divisions, eq(userRoles.divisionId, divisions.id));
+  // None of these depend on each other - fetch in parallel rather than
+  // round-tripping to the database one at a time.
+  const [allUsers, allCompanies, allDivisions, allRoles, assignments] = await Promise.all([
+    db.select().from(users),
+    db.select({ id: companies.id, name: companies.name }).from(companies),
+    db.select({ id: divisions.id, name: divisions.name }).from(divisions),
+    db.select().from(roles),
+    db
+      .select({
+        id: userRoles.id,
+        userId: userRoles.userId,
+        userName: users.name,
+        roleName: roles.name,
+        companyName: companies.name,
+        divisionName: divisions.name,
+      })
+      .from(userRoles)
+      .innerJoin(users, eq(userRoles.userId, users.id))
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .leftJoin(companies, eq(userRoles.companyId, companies.id))
+      .leftJoin(divisions, eq(userRoles.divisionId, divisions.id)),
+  ]);
 
   return (
     <div className="space-y-6">

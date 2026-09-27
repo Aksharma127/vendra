@@ -46,13 +46,19 @@ export default async function ReportsPage() {
     return <EmptyState message="You don't have permission to view this." />;
   }
 
-  const allPRs =
+  // allPRs, companyRows and divisionRows only depend on ctx, not on each
+  // other - fetch together instead of one round trip at a time.
+  const [allPRs, companyRows, divisionRows] = await Promise.all([
     ctx.authorizedCompanyIds.length > 0
-      ? await db.select().from(purchaseRequests).where(inArray(purchaseRequests.companyId, ctx.authorizedCompanyIds))
-      : [];
+      ? db.select().from(purchaseRequests).where(inArray(purchaseRequests.companyId, ctx.authorizedCompanyIds))
+      : Promise.resolve([]),
+    db.select().from(companies).where(inArray(companies.id, ctx.authorizedCompanyIds)),
+    ctx.activeCompanyId
+      ? db.select().from(divisions).where(eq(divisions.companyId, ctx.activeCompanyId))
+      : Promise.resolve([]),
+  ]);
 
   // Company-wise
-  const companyRows = await db.select().from(companies).where(inArray(companies.id, ctx.authorizedCompanyIds));
   const companyWise = companyRows.map((c) => {
     const prs = allPRs.filter((p) => p.companyId === c.id);
     const total = prs.reduce((s, p) => s + Number(p.amount), 0);
@@ -60,33 +66,27 @@ export default async function ReportsPage() {
   });
 
   // Division-wise (active company only)
-  const divisionRows = ctx.activeCompanyId
-    ? await db.select().from(divisions).where(eq(divisions.companyId, ctx.activeCompanyId))
-    : [];
   const divisionWise = divisionRows.map((d) => {
     const prs = allPRs.filter((p) => p.divisionId === d.id);
     const total = prs.reduce((s, p) => s + Number(p.amount), 0);
     return [d.name, prs.length, formatMoney(total)];
   });
 
-  // User-wise (active company only, by requester)
   const companyPRs = allPRs.filter((p) => p.companyId === ctx.activeCompanyId);
   const requesterIds = [...new Set(companyPRs.map((p) => p.requesterId))];
-  const requesterRows = requesterIds.length > 0
-    ? await db.select().from(users).where(inArray(users.id, requesterIds))
-    : [];
+  const prIds = companyPRs.map((p) => p.id);
+
+  // User-wise and activity rows both depend on companyPRs but not on each
+  // other - fetch together.
+  const [requesterRows, activityRows] = await Promise.all([
+    requesterIds.length > 0 ? db.select().from(users).where(inArray(users.id, requesterIds)) : Promise.resolve([]),
+    prIds.length > 0 ? db.select().from(workflowHistory).where(inArray(workflowHistory.entityId, prIds)) : Promise.resolve([]),
+  ]);
   const userWise = requesterRows.map((u) => {
     const prs = companyPRs.filter((p) => p.requesterId === u.id);
     const total = prs.reduce((s, p) => s + Number(p.amount), 0);
     return [u.name, prs.length, formatMoney(total)];
   });
-
-  // Activity: count of workflow transitions per action type (company-scoped via PR ids)
-  const prIds = companyPRs.map((p) => p.id);
-  const activityRows =
-    prIds.length > 0
-      ? await db.select().from(workflowHistory).where(inArray(workflowHistory.entityId, prIds))
-      : [];
   const activityByStatus = new Map<string, number>();
   for (const a of activityRows) {
     activityByStatus.set(a.toStatus, (activityByStatus.get(a.toStatus) ?? 0) + 1);

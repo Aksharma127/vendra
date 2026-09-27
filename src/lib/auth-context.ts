@@ -76,18 +76,51 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   const sessionId = await getSessionId();
   if (!sessionId) return null;
 
+  // No dependency on the session/user at all - kick this off immediately so
+  // it overlaps with every round trip below instead of adding one at the end.
+  const activeMenuItemsPromise = db
+    .select()
+    .from(menuItems)
+    .where(eq(menuItems.isActive, true))
+    .orderBy(menuItems.sortOrder);
+
   const session = await getRawSession(sessionId);
   if (!session) return null;
 
   const [user] = await db.select().from(users).where(eq(users.id, session.userId)).limit(1);
   if (!user || !user.isActive) return null;
 
-  // Authorized companies: explicit grant table, company must still be active.
-  const companyGrants = await db
-    .select({ id: companies.id, name: companies.name, code: companies.code })
-    .from(userCompanyAccess)
-    .innerJoin(companies, eq(userCompanyAccess.companyId, companies.id))
-    .where(and(eq(userCompanyAccess.userId, user.id), eq(companies.isActive, true)));
+  // These three only depend on user.id, not on each other - fetch in
+  // parallel instead of round-tripping one at a time.
+  const [companyGrants, divisionAccessRows, roleRows] = await Promise.all([
+    // Authorized companies: explicit grant table, company must still be active.
+    db
+      .select({ id: companies.id, name: companies.name, code: companies.code })
+      .from(userCompanyAccess)
+      .innerJoin(companies, eq(userCompanyAccess.companyId, companies.id))
+      .where(and(eq(userCompanyAccess.userId, user.id), eq(companies.isActive, true))),
+    // Raw division grants for this user, filtered against the division's
+    // CURRENT company/active status once activeCompanyId is known below -
+    // same live re-check getAuthorizedDivisionIds does, just inlined so it
+    // can run alongside the other two queries instead of waiting on them.
+    db
+      .select({ divisionId: userDivisionAccess.divisionId, companyId: divisions.companyId, isActive: divisions.isActive })
+      .from(userDivisionAccess)
+      .innerJoin(divisions, eq(userDivisionAccess.divisionId, divisions.id))
+      .where(eq(userDivisionAccess.userId, user.id)),
+    // Roles applicable in this active company (company-scoped or unscoped;
+    // division-scoped roles further narrowed to authorizedDivisionIds below).
+    db
+      .select({
+        roleId: userRoles.roleId,
+        roleName: roles.name,
+        companyId: userRoles.companyId,
+        divisionId: userRoles.divisionId,
+      })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(eq(userRoles.userId, user.id)),
+  ]);
 
   const authorizedCompanyIds = companyGrants.map((c) => c.id);
 
@@ -101,24 +134,9 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     }
   }
 
-  // Live division re-check: company gate FIRST, then filter grants against
-  // the division's CURRENT company_id - never trust the grant row alone.
-  const authorizedDivisionIds = activeCompanyId
-    ? await getAuthorizedDivisionIds(user.id, activeCompanyId)
-    : [];
-
-  // Roles applicable in this active company (company-scoped or unscoped;
-  // division-scoped roles further narrowed to authorizedDivisionIds).
-  const roleRows = await db
-    .select({
-      roleId: userRoles.roleId,
-      roleName: roles.name,
-      companyId: userRoles.companyId,
-      divisionId: userRoles.divisionId,
-    })
-    .from(userRoles)
-    .innerJoin(roles, eq(userRoles.roleId, roles.id))
-    .where(eq(userRoles.userId, user.id));
+  const authorizedDivisionIds = divisionAccessRows
+    .filter((g) => g.companyId === activeCompanyId && g.isActive)
+    .map((g) => g.divisionId);
 
   const applicableRoles = roleRows.filter((r) => {
     if (r.companyId && r.companyId !== activeCompanyId) return false;
@@ -129,7 +147,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   const roleNames = applicableRoles.map((r) => r.roleName);
   const applicableRoleIds = [...new Set(applicableRoles.map((r) => r.roleId))];
 
-  const { menuTree, menuPermissions } = await buildMenu(applicableRoleIds);
+  const { menuTree, menuPermissions } = await buildMenu(applicableRoleIds, activeMenuItemsPromise);
 
   return {
     userId: user.id,
@@ -154,13 +172,10 @@ export async function getAuthContext(): Promise<AuthContext | null> {
  * is visible; a leaf survives only if some applicable role grants can_view.
  */
 async function buildMenu(
-  roleIds: string[]
+  roleIds: string[],
+  itemsPromise: Promise<(typeof menuItems.$inferSelect)[]>
 ): Promise<{ menuTree: MenuNode[]; menuPermissions: Map<string, MenuPermission> }> {
-  const items = await db
-    .select()
-    .from(menuItems)
-    .where(eq(menuItems.isActive, true))
-    .orderBy(menuItems.sortOrder);
+  const items = await itemsPromise;
 
   const grants =
     roleIds.length > 0

@@ -15,18 +15,19 @@ export default async function AdminDivisionsPage() {
   const canEdit = canOnMenu(ctx, "/admin/divisions", "edit");
   const canCreate = canOnMenu(ctx, "/admin/divisions", "create");
 
-  const rows = await db
-    .select({
-      id: divisions.id,
-      name: divisions.name,
-      code: divisions.code,
-      isActive: divisions.isActive,
-      companyName: companies.name,
-    })
-    .from(divisions)
-    .innerJoin(companies, eq(divisions.companyId, companies.id));
-
-  const allCompanies = await db.select({ id: companies.id, name: companies.name }).from(companies);
+  const [rows, allCompanies] = await Promise.all([
+    db
+      .select({
+        id: divisions.id,
+        name: divisions.name,
+        code: divisions.code,
+        isActive: divisions.isActive,
+        companyName: companies.name,
+      })
+      .from(divisions)
+      .innerJoin(companies, eq(divisions.companyId, companies.id)),
+    db.select({ id: companies.id, name: companies.name }).from(companies),
+  ]);
 
   return (
     <div className="space-y-6">
