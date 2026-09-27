@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { AuthContext } from "@/lib/auth-context";
 import { CompanySwitcher } from "./CompanySwitcher";
-import { logoutAction } from "@/lib/actions/auth";
+import { SignOutButton } from "./SignOutButton";
 
 export function Header({
   ctx,
@@ -46,11 +46,7 @@ export function Header({
           <div className="text-ink">{ctx.userName}</div>
           <div className="text-xs text-graphite">{ctx.roleNames.join(", ") || "No role assigned"}</div>
         </div>
-        <form action={logoutAction}>
-          <button type="submit" className="text-sm text-graphite hover:text-ink transition-colors">
-            Sign out
-          </button>
-        </form>
+        <SignOutButton />
       </div>
     </header>
   );

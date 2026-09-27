@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { createDraftAction } from "@/lib/actions/purchase-requests";
+import { createDraftAction } from "@/lib/actions/purchase-requests-create";
 import { Button } from "@/components/ui/Button";
 
 const inputClass =

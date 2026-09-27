@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -72,7 +73,14 @@ export function canOnMenu(
  * through its live parent company - a division_access grant is never
  * trusted on its own (see getAuthorizedDivisionIds below).
  */
-export async function getAuthContext(): Promise<AuthContext | null> {
+// Wrapped in React's cache() so the (app) layout and the page it wraps -
+// which each independently need the auth context - resolve it exactly once
+// per request instead of twice. Without this, every single navigation ran
+// the full session/user/RBAC/menu resolution (5+ queries) TWICE: once for
+// the layout, once again for the page's own requireAuthContext() call. This
+// only dedupes within a single request/render pass, so it never returns
+// stale data across separate navigations.
+export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
   const sessionId = await getSessionId();
   if (!sessionId) return null;
 
@@ -163,7 +171,7 @@ export async function getAuthContext(): Promise<AuthContext | null> {
     menuTree,
     menuPermissions,
   };
-}
+});
 
 /**
  * Builds the pruned, database-driven nav tree plus a path -> permission map,

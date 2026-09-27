@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { requireAuthContext } from "@/lib/auth-context";
 import {
-  createDraft,
   editDraft,
   submitPR,
   withdrawPR,
@@ -12,36 +11,15 @@ import {
   WorkflowError,
 } from "@/lib/workflow/purchase-requests";
 
+// createDraftAction moved to ./purchase-requests-create.ts - see that file's
+// comment for why (a Turbopack production-build action-ID collision).
+
 type ActionState = { error?: string; success?: boolean };
 
 function toState(err: unknown): ActionState {
   if (err instanceof WorkflowError) return { error: err.message };
   console.error(err);
   return { error: "Something went wrong. Please try again." };
-}
-
-export async function createDraftAction(
-  _prev: ActionState | undefined,
-  formData: FormData
-): Promise<ActionState> {
-  try {
-    const ctx = await requireAuthContext();
-    const pr = await createDraft(ctx, {
-      divisionId: String(formData.get("divisionId") ?? ""),
-      category: String(formData.get("category") ?? ""),
-      itemDescription: String(formData.get("itemDescription") ?? ""),
-      quantity: Number(formData.get("quantity")),
-      estimatedUnitCost: Number(formData.get("estimatedUnitCost")),
-      justification: String(formData.get("justification") ?? "") || undefined,
-    });
-    revalidatePath("/purchase-requests/mine");
-    const { redirect } = await import("next/navigation");
-    redirect(`/purchase-requests/${pr.id}`);
-  } catch (err) {
-    if (err && typeof err === "object" && "digest" in err) throw err; // redirect()
-    return toState(err);
-  }
-  return {};
 }
 
 export async function editDraftAction(
