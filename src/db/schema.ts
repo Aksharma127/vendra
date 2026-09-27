@@ -68,9 +68,8 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Roles are fixed for this build (Employee, Division Manager, Finance Approver,
-// Procurement Officer, Auditor, Admin) - stored as a simple lookup table rather
-// than the full dynamic menu-permission matrix (documented scope cut, see README).
+// Roles: Employee, Division Manager, Finance Approver, Procurement Officer,
+// Auditor, Admin, plus any created via the Role Master admin screen.
 export const roles = pgTable("roles", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull().unique(),
@@ -241,6 +240,42 @@ export const companySequences = pgTable(
   },
   (t) => ({
     pk: primaryKey({ columns: [t.companyId, t.sequenceName, t.calendarYear] }),
+  })
+);
+
+// ---------- Dynamic menu + action-level permissions ----------
+// The nav is database-driven: menu_items is a parent/child tree, and
+// role_menu_permissions holds View/Create/Edit/Delete flags per role per
+// menu item. The Sidebar renders straight from these tables. parentId is a
+// plain uuid (no FK) rather than a self-referencing constraint, since
+// drizzle-kit push handles a genuine self-reference awkwardly and this is a
+// low-risk lookup table maintained through one admin screen.
+export const menuItems = pgTable("menu_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  parentId: uuid("parent_id"),
+  label: text("label").notNull(),
+  path: text("path"), // null for a parent heading with no page of its own
+  sortOrder: integer("sort_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
+export const roleMenuPermissions = pgTable(
+  "role_menu_permissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+    menuItemId: uuid("menu_item_id")
+      .notNull()
+      .references(() => menuItems.id, { onDelete: "cascade" }),
+    canView: boolean("can_view").notNull().default(false),
+    canCreate: boolean("can_create").notNull().default(false),
+    canEdit: boolean("can_edit").notNull().default(false),
+    canDelete: boolean("can_delete").notNull().default(false),
+  },
+  (t) => ({
+    uq: uniqueIndex("uq_role_menu").on(t.roleId, t.menuItemId),
   })
 );
 

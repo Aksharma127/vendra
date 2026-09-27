@@ -19,7 +19,7 @@ export function LoginForm() {
           type="email"
           required
           autoFocus
-          className="w-full rounded border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+          className="w-full rounded border border-line bg-surface px-3 py-2 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
           placeholder="priya@vendra.demo"
         />
       </div>
@@ -32,7 +32,7 @@ export function LoginForm() {
           name="password"
           type="password"
           required
-          className="w-full rounded border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+          className="w-full rounded border border-line bg-surface px-3 py-2 text-sm transition-shadow focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
           placeholder="vendra123"
         />
       </div>

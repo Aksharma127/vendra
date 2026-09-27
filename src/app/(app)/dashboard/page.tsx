@@ -5,9 +5,16 @@ import { requireAuthContext } from "@/lib/auth-context";
 import { Panel } from "@/components/ui/Panel";
 import { formatMoney } from "@/lib/format";
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+const STAT_ACCENTS = ["bg-accent/10 text-accent", "bg-warning/10 text-warning", "bg-success/10 text-success", "bg-danger/10 text-danger"];
+
+function Stat({ label, value, accent = 0 }: { label: string; value: string | number; accent?: number }) {
   return (
     <Panel className="p-5">
+      <div className={`inline-flex h-8 w-8 items-center justify-center rounded-full mb-3 ${STAT_ACCENTS[accent % STAT_ACCENTS.length]}`}>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
+          <path d="M3 15.5V9m5.5 6.5V4.5M14 15.5v-4m5.5 4V7" strokeLinecap="round" />
+        </svg>
+      </div>
       <div className="text-xs text-graphite mb-1">{label}</div>
       <div className="text-2xl font-semibold text-ink">{value}</div>
     </Panel>
@@ -36,11 +43,11 @@ export default async function DashboardPage() {
           Structural information only. Administrators do not have visibility into business
           transactions, requests, orders, or spend.
         </p>
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          <Stat label="Companies" value={companyCount.n} />
-          <Stat label="Divisions" value={divisionCount.n} />
-          <Stat label="Users" value={userCount.n} />
-          <Stat label="Active companies" value={activeCompanies.length} />
+        <div className="grid grid-cols-4 gap-4 mb-6 stagger-children">
+          <Stat label="Companies" value={companyCount.n} accent={0} />
+          <Stat label="Divisions" value={divisionCount.n} accent={1} />
+          <Stat label="Users" value={userCount.n} accent={2} />
+          <Stat label="Active companies" value={activeCompanies.length} accent={3} />
         </div>
         <Panel className="p-5">
           <div className="text-sm font-medium text-ink mb-3">Configuration health</div>
@@ -80,11 +87,11 @@ export default async function DashboardPage() {
       <p className="text-sm text-graphite mb-6">
         {ctx.capabilities.has("pr:view-all") ? "Company-wide view for the active company." : "Your requests only."}
       </p>
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <Stat label="Pending division approval" value={pendingDivision} />
-        <Stat label="Pending finance approval" value={pendingFinance} />
-        <Stat label="Approved, awaiting PO" value={approvedPendingPO} />
-        <Stat label="Purchase orders issued" value={issuedPOs} />
+      <div className="grid grid-cols-4 gap-4 mb-6 stagger-children">
+        <Stat label="Pending division approval" value={pendingDivision} accent={0} />
+        <Stat label="Pending finance approval" value={pendingFinance} accent={1} />
+        <Stat label="Approved, awaiting PO" value={approvedPendingPO} accent={2} />
+        <Stat label="Purchase orders issued" value={issuedPOs} accent={3} />
       </div>
       <Panel className="p-5">
         <div className="text-sm font-medium text-ink mb-1">Open request value</div>

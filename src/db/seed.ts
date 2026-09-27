@@ -18,6 +18,8 @@ import {
   vendors,
   config,
   companySequences,
+  menuItems,
+  roleMenuPermissions,
 } from "./schema";
 import * as ids from "./ids";
 
@@ -146,6 +148,95 @@ async function main() {
       { companyId: ids.COMPANY_KIGM_ID, sequenceName: "PO", calendarYear: year, lastValue: 0 },
       { companyId: ids.COMPANY_KIGT_ID, sequenceName: "PR", calendarYear: year, lastValue: 0 },
       { companyId: ids.COMPANY_KIGT_ID, sequenceName: "PO", calendarYear: year, lastValue: 0 },
+    ])
+    .onConflictDoNothing();
+
+  // 11. Dynamic menu tree (database-driven nav)
+  await db
+    .insert(menuItems)
+    .values([
+      { id: ids.MENU_DASHBOARD_ID, parentId: null, label: "Dashboard", path: "/dashboard", sortOrder: 0 },
+      { id: ids.MENU_PROCUREMENT_GROUP_ID, parentId: null, label: "Procurement", path: null, sortOrder: 10 },
+      { id: ids.MENU_MY_REQUESTS_ID, parentId: ids.MENU_PROCUREMENT_GROUP_ID, label: "My Requests", path: "/purchase-requests/mine", sortOrder: 0 },
+      { id: ids.MENU_APPROVAL_QUEUE_ID, parentId: ids.MENU_PROCUREMENT_GROUP_ID, label: "Approval Queue", path: "/purchase-requests/queue", sortOrder: 1 },
+      { id: ids.MENU_ALL_REQUESTS_ID, parentId: ids.MENU_PROCUREMENT_GROUP_ID, label: "All Requests", path: "/purchase-requests/all", sortOrder: 2 },
+      { id: ids.MENU_PURCHASE_ORDERS_ID, parentId: ids.MENU_PROCUREMENT_GROUP_ID, label: "Purchase Orders", path: "/purchase-orders", sortOrder: 3 },
+      { id: ids.MENU_VENDORS_ID, parentId: ids.MENU_PROCUREMENT_GROUP_ID, label: "Vendors", path: "/vendors", sortOrder: 4 },
+      { id: ids.MENU_INSIGHTS_GROUP_ID, parentId: null, label: "Insights", path: null, sortOrder: 20 },
+      { id: ids.MENU_REPORTS_ID, parentId: ids.MENU_INSIGHTS_GROUP_ID, label: "Reports", path: "/reports", sortOrder: 0 },
+      { id: ids.MENU_AUDIT_TRAIL_ID, parentId: ids.MENU_INSIGHTS_GROUP_ID, label: "Audit Trail", path: "/audit-trail", sortOrder: 1 },
+      { id: ids.MENU_ADMIN_GROUP_ID, parentId: null, label: "Administration", path: null, sortOrder: 30 },
+      { id: ids.MENU_ADMIN_COMPANIES_ID, parentId: ids.MENU_ADMIN_GROUP_ID, label: "Companies", path: "/admin/companies", sortOrder: 0 },
+      { id: ids.MENU_ADMIN_DIVISIONS_ID, parentId: ids.MENU_ADMIN_GROUP_ID, label: "Divisions", path: "/admin/divisions", sortOrder: 1 },
+      { id: ids.MENU_ADMIN_USERS_ID, parentId: ids.MENU_ADMIN_GROUP_ID, label: "Users", path: "/admin/users", sortOrder: 2 },
+      { id: ids.MENU_ADMIN_ROLES_ID, parentId: ids.MENU_ADMIN_GROUP_ID, label: "Roles", path: "/admin/roles", sortOrder: 3 },
+      { id: ids.MENU_ADMIN_CONFIG_ID, parentId: ids.MENU_ADMIN_GROUP_ID, label: "Configuration", path: "/admin/config", sortOrder: 4 },
+    ])
+    .onConflictDoNothing();
+
+  // 12. Role menu permissions. View mirrors what each role could already do
+  // via the business-capability system (kept as the source of truth for
+  // actual server-side authorization); Create/Edit/Delete are only granted
+  // on the new Administration screens, which check them for real.
+  const V = (roleId: string, menuItemId: string) => ({ roleId, menuItemId, canView: true });
+  const ADMIN_CRUD = (menuItemId: string) => ({
+    roleId: ids.ROLE_ADMIN_ID,
+    menuItemId,
+    canView: true,
+    canCreate: true,
+    canEdit: true,
+    canDelete: true,
+  });
+
+  await db
+    .insert(roleMenuPermissions)
+    .values([
+      // Dashboard: everyone
+      V(ids.ROLE_EMPLOYEE_ID, ids.MENU_DASHBOARD_ID),
+      V(ids.ROLE_DIVISION_MANAGER_ID, ids.MENU_DASHBOARD_ID),
+      V(ids.ROLE_FINANCE_APPROVER_ID, ids.MENU_DASHBOARD_ID),
+      V(ids.ROLE_PROCUREMENT_OFFICER_ID, ids.MENU_DASHBOARD_ID),
+      V(ids.ROLE_AUDITOR_ID, ids.MENU_DASHBOARD_ID),
+      V(ids.ROLE_ADMIN_ID, ids.MENU_DASHBOARD_ID),
+
+      // Procurement group + My Requests: Employee, Division Manager
+      V(ids.ROLE_EMPLOYEE_ID, ids.MENU_PROCUREMENT_GROUP_ID),
+      V(ids.ROLE_EMPLOYEE_ID, ids.MENU_MY_REQUESTS_ID),
+      V(ids.ROLE_DIVISION_MANAGER_ID, ids.MENU_PROCUREMENT_GROUP_ID),
+      V(ids.ROLE_DIVISION_MANAGER_ID, ids.MENU_MY_REQUESTS_ID),
+
+      // Approval Queue: Division Manager, Finance Approver
+      V(ids.ROLE_DIVISION_MANAGER_ID, ids.MENU_APPROVAL_QUEUE_ID),
+      V(ids.ROLE_FINANCE_APPROVER_ID, ids.MENU_PROCUREMENT_GROUP_ID),
+      V(ids.ROLE_FINANCE_APPROVER_ID, ids.MENU_APPROVAL_QUEUE_ID),
+
+      // All Requests + Purchase Orders: Finance Approver, Procurement Officer, Auditor
+      V(ids.ROLE_FINANCE_APPROVER_ID, ids.MENU_ALL_REQUESTS_ID),
+      V(ids.ROLE_FINANCE_APPROVER_ID, ids.MENU_PURCHASE_ORDERS_ID),
+      V(ids.ROLE_PROCUREMENT_OFFICER_ID, ids.MENU_PROCUREMENT_GROUP_ID),
+      V(ids.ROLE_PROCUREMENT_OFFICER_ID, ids.MENU_ALL_REQUESTS_ID),
+      V(ids.ROLE_PROCUREMENT_OFFICER_ID, ids.MENU_PURCHASE_ORDERS_ID),
+      V(ids.ROLE_PROCUREMENT_OFFICER_ID, ids.MENU_VENDORS_ID),
+      V(ids.ROLE_AUDITOR_ID, ids.MENU_PROCUREMENT_GROUP_ID),
+      V(ids.ROLE_AUDITOR_ID, ids.MENU_ALL_REQUESTS_ID),
+      V(ids.ROLE_AUDITOR_ID, ids.MENU_PURCHASE_ORDERS_ID),
+
+      // Insights: Finance Approver + Procurement Officer (Reports), Auditor (both)
+      V(ids.ROLE_FINANCE_APPROVER_ID, ids.MENU_INSIGHTS_GROUP_ID),
+      V(ids.ROLE_FINANCE_APPROVER_ID, ids.MENU_REPORTS_ID),
+      V(ids.ROLE_PROCUREMENT_OFFICER_ID, ids.MENU_INSIGHTS_GROUP_ID),
+      V(ids.ROLE_PROCUREMENT_OFFICER_ID, ids.MENU_REPORTS_ID),
+      V(ids.ROLE_AUDITOR_ID, ids.MENU_INSIGHTS_GROUP_ID),
+      V(ids.ROLE_AUDITOR_ID, ids.MENU_REPORTS_ID),
+      V(ids.ROLE_AUDITOR_ID, ids.MENU_AUDIT_TRAIL_ID),
+
+      // Administration: Admin only, full CRUD on every admin screen
+      V(ids.ROLE_ADMIN_ID, ids.MENU_ADMIN_GROUP_ID),
+      ADMIN_CRUD(ids.MENU_ADMIN_COMPANIES_ID),
+      ADMIN_CRUD(ids.MENU_ADMIN_DIVISIONS_ID),
+      ADMIN_CRUD(ids.MENU_ADMIN_USERS_ID),
+      ADMIN_CRUD(ids.MENU_ADMIN_ROLES_ID),
+      ADMIN_CRUD(ids.MENU_ADMIN_CONFIG_ID),
     ])
     .onConflictDoNothing();
 
