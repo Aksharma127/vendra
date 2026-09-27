@@ -1,36 +1,146 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Vendra — Procurement & Vendor Operations Console
 
-## Getting Started
+A multi-company procurement workflow system: purchase requests move through
+division approval, finance approval (with a two-approver rule above a
+threshold), and purchase order issuance, with full audit trail, role-based
+access, and company/division-scoped data visibility.
 
-First, run the development server:
+Built as a single Next.js 16 (App Router) application — Server Components and
+Server Actions for both the UI and the backend, Postgres via Drizzle ORM,
+cookie-based sessions. No separate API server, so it deploys to Vercel as one
+project.
+
+## Demo accounts
+
+Seeded with two companies (Kigma Manufacturing, Kigma Trading), four
+divisions, four vendors, and six users. Password for all: `vendra123`.
+
+| Email | Role | Notes |
+|---|---|---|
+| priya@vendra.demo | Employee | Raises requests |
+| rahul@vendra.demo | Division Manager | Approves at division level (Plant Ops, Kigma Manufacturing) |
+| meera@vendra.demo | Finance Approver | Approves at finance level |
+| arjun@vendra.demo | Procurement Officer | Issues purchase orders |
+| zara@vendra.demo | Auditor | Read-only, audit trail + reports |
+| admin@vendra.demo | Admin | Structural admin only — no visibility into requests, orders, or spend (by design) |
+
+**Demo walkthrough:** log in as Priya, raise a request (keep it under
+₹5,00,000 total to avoid the two-approver finance rule, and add a
+justification if the amount is over ₹50,000) → sign out, log in as Rahul,
+approve it in the Approval Queue → sign out, log in as Meera, approve it →
+sign out, log in as Arjun, issue a purchase order against it → check the
+Audit Trail as Zara.
+
+## Local setup
+
+Requires Node 20+ and a Postgres 16 database.
 
 ```bash
+npm install
+cp .env.example .env   # fill in DATABASE_URL
+npm run db:setup       # push schema, apply constraints, seed demo data
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deploying to Vercel
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 1. Get a production Postgres database
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Vercel doesn't run Postgres itself. Use any managed Postgres — this was
+built and tested against plain `postgres`/Drizzle, so any of these work
+with no code changes:
 
-## Learn More
+- **Neon** (neon.tech) — free tier, native Vercel integration
+- **Supabase** (supabase.com) — free tier
+- **Vercel Postgres** (via the Storage tab in your Vercel project)
 
-To learn more about Next.js, take a look at the following resources:
+Copy the connection string. It must end in `?sslmode=require` (Neon and
+Supabase both give you this by default).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 2. Push the schema and seed data
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+From your local machine, pointed at the **production** database:
 
-## Deploy on Vercel
+```bash
+DATABASE_URL="postgresql://...sslmode=require" npm run db:setup
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This runs, in order: `drizzle-kit push` (creates all tables/enums), the
+manual-constraints script (`drizzle/manual-constraints.sql` — composite
+foreign keys and the NULLS-NOT-DISTINCT index that Drizzle Kit's push
+doesn't express; see that file for why they matter), and the seed script
+(demo companies/divisions/users/vendors).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 3. Deploy
+
+```bash
+npm install -g vercel   # if you don't have it
+vercel
+```
+
+Follow the prompts (link or create a project). When asked for environment
+variables, or afterward in the Vercel dashboard under **Settings →
+Environment Variables**, set:
+
+- `DATABASE_URL` — the same production connection string from step 1
+
+Then either `vercel --prod`, or push to the branch Vercel is tracking (if
+you connect the project to a GitHub repo, every push to `main` deploys
+automatically).
+
+No other configuration is needed — no build command overrides, no
+serverless function config. `next build` / `next start` (which Vercel runs
+automatically) are all this project needs.
+
+### 4. Re-running the seed later
+
+The seed script is idempotent (`onConflictDoNothing` on every insert), so
+`npm run db:seed` (pointed at production) can be re-run safely — it won't
+duplicate demo data, but it also won't reset anything you've changed through
+the app.
+
+## What was deliberately scoped down
+
+This was built end-to-end in one session against a hard deadline. A few
+things from the original design spec were deliberately cut or simplified
+rather than left half-built — each one is a documented, load-bearing
+decision, not an oversight:
+
+- **Static role → capability map** instead of a fully dynamic per-menu
+  permission-matrix admin UI. Every capability check still happens
+  server-side, on every request (`src/lib/rbac.ts`, `src/lib/auth-context.ts`)
+  — what's cut is only the *admin UI for editing* which role has which
+  capability, not the enforcement itself.
+- **Admin has zero business-data visibility** by design: the Admin role
+  sees only structural counts (companies/divisions/users) on the dashboard,
+  never requests, orders, or spend. This is enforced in
+  `src/app/(app)/dashboard/page.tsx` via `ctx.hasBusinessRole`.
+- **No separate Express/API-server split** — the original architecture
+  called for a separate backend; this was consolidated into Next.js Server
+  Actions and Route Handlers so the whole thing is one Vercel deployment.
+- **Session auth is a plain DB-backed cookie**, not a JWT or a library like
+  NextAuth — simpler to reason about and just as secure for this scope,
+  since the session ID is an unguessable UUID and the cookie is
+  `httpOnly`/`secure`/`sameSite=lax`.
+
+## Architecture notes worth knowing before you demo this
+
+- **Company/division scoping is re-derived on every request**
+  (`getAuthContext()` in `src/lib/auth-context.ts`), never cached and never
+  trusted from client input. A division's access grant is only honored if
+  its *current* `company_id` still matches an authorized company — so
+  deactivating or reparenting a division takes effect immediately.
+- **Finance approval above the threshold requires two distinct approvers**,
+  and the first-approver claim is a genuinely atomic
+  `UPDATE ... WHERE finance_first_approver_id IS NULL` (not a same-value
+  compare-and-swap), so two simultaneous approval clicks can't both become
+  "the first approver" (`src/lib/workflow/purchase-requests.ts`).
+- **PR/PO numbers are allocated atomically per company, per calendar year**
+  (`src/lib/workflow/numbering.ts`), via an upsert — never `COUNT`/`MAX` —
+  so numbers can't collide under concurrent submissions and reset to
+  `00001` on a new year.
+- **The database itself enforces cross-entity company matching** via
+  composite foreign keys (a purchase order's vendor must share the PO's
+  `company_id`; a PR's division must share the PR's `company_id`) — see
+  `drizzle/manual-constraints.sql`. This is a backstop below the
+  application-level checks, not a replacement for them.
