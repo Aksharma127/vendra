@@ -1,23 +1,58 @@
-import { inArray } from "drizzle-orm";
+import Link from "next/link";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { divisions } from "@/db/schema";
+import { divisions, purchaseRequests } from "@/db/schema";
 import { requireAuthContext } from "@/lib/auth-context";
-import { Panel } from "@/components/ui/Panel";
+import { Panel, PanelHeader } from "@/components/ui/Panel";
+import { PRTable } from "@/components/PRTable";
 import { NewPRForm } from "./NewPRForm";
 
 export default async function NewPRPage() {
   const ctx = await requireAuthContext();
 
-  const availableDivisions =
+  const [availableDivisions, existingRows] = await Promise.all([
     ctx.authorizedDivisionIds.length > 0
-      ? await db.select().from(divisions).where(inArray(divisions.id, ctx.authorizedDivisionIds))
-      : [];
+      ? db.select().from(divisions).where(inArray(divisions.id, ctx.authorizedDivisionIds))
+      : Promise.resolve([]),
+    db
+      .select({
+        id: purchaseRequests.id,
+        prNumber: purchaseRequests.prNumber,
+        itemDescription: purchaseRequests.itemDescription,
+        amount: purchaseRequests.amount,
+        status: purchaseRequests.status,
+        createdAt: purchaseRequests.createdAt,
+        divisionName: divisions.name,
+      })
+      .from(purchaseRequests)
+      .innerJoin(divisions, eq(purchaseRequests.divisionId, divisions.id))
+      .where(eq(purchaseRequests.requesterId, ctx.userId))
+      .orderBy(purchaseRequests.createdAt),
+  ]);
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-lg font-semibold text-ink mb-4">New Purchase Request</h1>
+    <div className="max-w-3xl space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold text-ink">New Purchase Request</h1>
+        {/* Not committed to anything by opening this form - a way back to
+            the list, matching every other "Add" screen in the app, which
+            all show the form above the existing list rather than hiding it
+            behind a separate page. */}
+        <Link href="/purchase-requests/mine" className="text-sm text-graphite hover:text-ink transition-colors">
+          Cancel
+        </Link>
+      </div>
       <Panel className="p-6">
         <NewPRForm divisions={availableDivisions.map((d) => ({ id: d.id, name: d.name }))} />
+      </Panel>
+
+      <Panel>
+        <PanelHeader>
+          <span className="text-sm font-medium text-ink">Your existing requests</span>
+        </PanelHeader>
+        <div className="px-5 py-4 overflow-x-auto">
+          <PRTable rows={existingRows.reverse()} emptyMessage="You haven't raised any purchase requests yet." />
+        </div>
       </Panel>
     </div>
   );
