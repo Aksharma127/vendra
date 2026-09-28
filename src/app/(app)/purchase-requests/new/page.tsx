@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { divisions, purchaseRequests } from "@/db/schema";
 import { requireAuthContext } from "@/lib/auth-context";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { PRTable } from "@/components/PRTable";
 import { NewPRForm } from "./NewPRForm";
+import { aiConfigured } from "@/lib/ai/draft";
 
 export default async function NewPRPage() {
   const ctx = await requireAuthContext();
@@ -27,7 +28,8 @@ export default async function NewPRPage() {
       .from(purchaseRequests)
       .innerJoin(divisions, eq(purchaseRequests.divisionId, divisions.id))
       .where(eq(purchaseRequests.requesterId, ctx.userId))
-      .orderBy(purchaseRequests.createdAt),
+      .orderBy(desc(purchaseRequests.createdAt))
+      .limit(8),
   ]);
 
   return (
@@ -43,15 +45,18 @@ export default async function NewPRPage() {
         </Link>
       </div>
       <Panel className="p-6">
-        <NewPRForm divisions={availableDivisions.map((d) => ({ id: d.id, name: d.name }))} />
+        <NewPRForm divisions={availableDivisions.map((d) => ({ id: d.id, name: d.name }))} aiEnabled={aiConfigured()} />
       </Panel>
 
       <Panel>
         <PanelHeader>
-          <span className="text-sm font-medium text-ink">Your existing requests</span>
+          <span className="text-sm font-medium text-ink">Your recent requests</span>
+          <Link href="/purchase-requests/mine" className="text-xs text-accent hover:underline">
+            View all
+          </Link>
         </PanelHeader>
         <div className="px-5 py-4 overflow-x-auto">
-          <PRTable rows={existingRows.reverse()} emptyMessage="You haven't raised any purchase requests yet." />
+          <PRTable rows={existingRows} emptyMessage="You haven't raised any purchase requests yet." />
         </div>
       </Panel>
     </div>

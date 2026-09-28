@@ -65,6 +65,24 @@ npm run db:seed:demo   # optional: six months of realistic procurement history
 npm run dev
 ```
 
+## AI autofill (optional)
+
+On **New Purchase Request**, "Fill with AI" takes a plain-language note
+("need 40 safety shoes ~1800 each"), a pasted supplier email, or a photo/PDF
+of a quote, and fills in category, item, quantity, unit cost and
+justification using Google Gemini. It only pre-fills the form: the
+requester reviews it (AI-filled fields are tinted, with the model's notes
+and confidence shown) and nothing is saved until they press Save, which goes
+through the normal server-side validation.
+
+- Set `GEMINI_API_KEY` (free key from https://aistudio.google.com/apikey).
+  Without it the AI panel simply doesn't render.
+- `GEMINI_MODEL` optionally overrides the model; if the configured name isn't
+  available to the key it falls back to `gemini-2.5-flash`.
+- Endpoint: `POST /api/ai/draft` (Route Handler, not a Server Action, to
+  allow uploads up to 4 MB). Requires a signed-in user with `pr:create`,
+  accepts JPG/PNG/WebP/HEIC/PDF, and has a per-user rate limit.
+
 ## Deploying to Vercel
 
 ### 1. Get a production Postgres database
