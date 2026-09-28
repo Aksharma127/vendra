@@ -44,7 +44,7 @@ function isActive(pathname: string, path: string | null) {
   return pathname === path || pathname.startsWith(path + "/");
 }
 
-export function Sidebar({ tree }: { tree: MenuNode[] }) {
+export function Sidebar({ tree, buildId }: { tree: MenuNode[]; buildId?: string }) {
   const pathname = usePathname();
   const { open, close } = useMobileNav();
 
@@ -119,6 +119,7 @@ export function Sidebar({ tree }: { tree: MenuNode[] }) {
         <div className="px-5 py-3 border-t border-line flex items-center gap-2 text-[11px] text-graphite/70">
           <span className="h-1.5 w-1.5 rounded-full bg-success" />
           Vendra Console
+          {buildId && <span className="ml-auto font-mono">{buildId}</span>}
         </div>
       </aside>
     </>

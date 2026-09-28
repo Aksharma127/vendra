@@ -21,10 +21,15 @@ async function Shell({ children }: { children: React.ReactNode }) {
 
   const pendingApprovalCount = await getPendingApprovalCount(ctx);
 
+  // Vercel sets this automatically at build time - a visible way to confirm
+  // which commit is actually live, since deploy dashboards and stale mobile
+  // caches otherwise make that impossible to eyeball from the device itself.
+  const buildId = (process.env.VERCEL_GIT_COMMIT_SHA ?? "local").slice(0, 7);
+
   return (
     <MobileNavProvider>
       <div className="flex h-full min-h-screen">
-        <Sidebar tree={ctx.menuTree} />
+        <Sidebar tree={ctx.menuTree} buildId={buildId} />
         <div className="flex-1 flex flex-col min-w-0">
           <Header ctx={ctx} pendingApprovalCount={pendingApprovalCount} />
           <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 animate-fade-in">{children}</main>
