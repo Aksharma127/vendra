@@ -59,8 +59,18 @@ export function Sidebar({ tree, buildId }: { tree: MenuNode[]; buildId?: string 
         />
       )}
       <aside
-        className={`w-60 shrink-0 border-r border-line bg-surface flex flex-col fixed inset-y-0 left-0 z-40 transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
-          open ? "translate-x-0" : "-translate-x-full"
+        // The off-canvas drawer relies on this transform being applied on
+        // narrow screens. Tailwind v4's translate-x-* utilities emit the
+        // standalone CSS `translate` property (not `transform`) - that
+        // property is only ~2022+ in Chrome, and older/OEM Android WebViews
+        // (common on budget and China-market phones) silently ignore it,
+        // leaving the sidebar fully visible and shoving the content over
+        // instead of hiding off-screen. `transform: translateX()` has been
+        // supported everywhere for over a decade, so it's used explicitly
+        // here via an arbitrary-value utility instead of trusting the
+        // shorthand.
+        className={`w-60 shrink-0 border-r border-line bg-surface flex flex-col fixed inset-y-0 left-0 z-40 transition-transform duration-200 ease-out lg:static lg:[transform:translateX(0)] ${
+          open ? "[transform:translateX(0)]" : "[transform:translateX(-100%)]"
         }`}
       >
         <div className="px-5 py-4 border-b border-line flex items-center gap-2">
