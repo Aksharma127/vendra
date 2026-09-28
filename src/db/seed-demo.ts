@@ -386,6 +386,116 @@ async function allocateBlock(tx: Parameters<Parameters<typeof db.transaction>[0]
   return row.lastValue - n + 1; // first number in the block
 }
 
+// ---------- SQL export (for pasting into a hosted SQL editor) ----------
+// Same data as a direct run, as one self-contained, re-runnable script:
+// it deletes any previously seeded demo rows first, and assigns PR/PO
+// numbers in SQL from the target database's own counters - so it never
+// collides with requests that already exist there.
+function lit(v: unknown): string {
+  if (v === null || v === undefined) return "NULL";
+  if (v instanceof Date) return `'${v.toISOString()}'`;
+  if (typeof v === "number") return String(v);
+  return `'${String(v).replaceAll("'", "''")}'`;
+}
+
+function insertSql(table: string, cols: string[], rows: unknown[][], conflict = ""): string {
+  const out: string[] = [];
+  for (let i = 0; i < rows.length; i += 250) {
+    const chunk = rows.slice(i, i + 250).map((r) => `(${r.map(lit).join(",")})`);
+    out.push(`INSERT INTO ${table} (${cols.join(",")}) VALUES\n${chunk.join(",\n")}${conflict ? "\n" + conflict : ""};`);
+  }
+  return out.join("\n");
+}
+
+async function buildSqlScript(year: number): Promise<string> {
+  const passwordHash = await bcrypt.hash(ids.DEMO_PASSWORD, 10);
+  const { prs, pos, history, audit } = generate(Date.now());
+  const seeded = `'${PR_PREFIX}-%'`;
+  const seededPO = `'${PO_PREFIX}-%'`;
+  const s: string[] = [];
+
+  s.push(`-- Vendra demo history. Generated ${new Date().toISOString()}.
+-- Requires the base seed (npm run db:setup) to have run on this database.
+-- Safe to re-run: removes earlier demo rows, then re-inserts.
+BEGIN;`);
+
+  s.push(`-- 1. Colleagues (password: ${ids.DEMO_PASSWORD}), access, roles, vendors`);
+  s.push(insertSql("users", ["id", "name", "email", "password_hash"], EXTRA_USERS.map((u) => [u.id, u.name, u.email, passwordHash]), "ON CONFLICT DO NOTHING"));
+  s.push(insertSql("user_company_access", ["id", "user_id", "company_id"], EXTRA_USERS.map((u, i) => [uid("42000000", i + 1), u.id, u.company]), "ON CONFLICT DO NOTHING"));
+  s.push(insertSql("user_division_access", ["id", "user_id", "division_id"], EXTRA_USERS.map((u, i) => [uid("43000000", i + 1), u.id, u.division]), "ON CONFLICT DO NOTHING"));
+  s.push(
+    insertSql(
+      "user_roles",
+      ["id", "user_id", "role_id", "company_id", "division_id"],
+      EXTRA_USERS.map((u, i) => [uid("44000000", i + 1), u.id, u.manager ? ids.ROLE_DIVISION_MANAGER_ID : ids.ROLE_EMPLOYEE_ID, u.manager ? u.company : null, u.manager ? u.division : null]),
+      "ON CONFLICT DO NOTHING"
+    )
+  );
+  s.push(insertSql("vendors", ["id", "company_id", "name", "category", "contact_name", "contact_email"], EXTRA_VENDORS.map((v) => [v.id, v.companyId, v.name, v.category, v.contactName, v.contactEmail]), "ON CONFLICT DO NOTHING"));
+
+  s.push(`-- 2. Remove any earlier demo history
+DELETE FROM audit_log WHERE entity_id::text LIKE ${seeded} OR entity_id::text LIKE ${seededPO};
+DELETE FROM workflow_history WHERE entity_id::text LIKE ${seeded} OR entity_id::text LIKE ${seededPO};
+DELETE FROM purchase_orders WHERE id::text LIKE ${seededPO};
+DELETE FROM purchase_requests WHERE id::text LIKE ${seeded};`);
+
+  s.push(`-- 3. Requests and orders (numbers assigned below)`);
+  s.push(
+    insertSql(
+      "purchase_requests",
+      ["id", "company_id", "division_id", "requester_id", "category", "item_description", "quantity", "estimated_unit_cost", "amount", "justification", "status", "created_at", "updated_at"],
+      prs.map((p) => [p.id, p.companyId, p.divisionId, p.requesterId, p.category, p.itemDescription, p.quantity, p.estimatedUnitCost, p.amount, p.justification, p.status, p.createdAt, p.updatedAt])
+    )
+  );
+  s.push(
+    insertSql(
+      "purchase_orders",
+      ["id", "pr_id", "vendor_id", "company_id", "amount", "delivery_date", "payment_terms", "status", "issued_by", "created_at", "updated_at"],
+      pos.map((p) => [p.id, p.prId, p.vendorId, p.companyId, p.amount, p.deliveryDate, p.paymentTerms, p.status, p.issuedBy, p.createdAt, p.updatedAt])
+    )
+  );
+  s.push(`-- 4. Workflow history and audit log`);
+  s.push(insertSql("workflow_history", ["entity_type", "entity_id", "actor_id", "role_acted_as", "from_status", "to_status", "comment", "created_at"], history.map((h) => [h.entityType, h.entityId, h.actorId, h.roleActedAs, h.fromStatus, h.toStatus, h.comment ?? null, h.createdAt])));
+  s.push(insertSql("audit_log", ["actor_id", "action", "entity_type", "entity_id", "company_id", "division_id", "after_state", "created_at"], audit.map((a) => [a.actorId, a.action, a.entityType, a.entityId, a.companyId, a.divisionId ?? null, a.afterState, a.createdAt])));
+
+  // Number chronologically per company, continuing from the highest number
+  // already used by non-demo rows in THIS database, then sync the counters.
+  for (const [kind, table, col, prefix, order] of [
+    ["PR", "purchase_requests", "pr_number", seeded, "t.created_at"],
+    ["PO", "purchase_orders", "po_number", seededPO, "t.created_at"],
+  ] as const) {
+    s.push(`-- 5${kind === "PR" ? "a" : "b"}. ${kind} numbers
+WITH base AS (
+  SELECT c.id AS company_id, c.code,
+         COALESCE(MAX(SPLIT_PART(x.${col}, '-', 4)::int) FILTER (WHERE x.${col} LIKE '%-${year}-%'), 0) AS last_used
+  FROM companies c
+  LEFT JOIN ${table} x ON x.company_id = c.id AND x.id::text NOT LIKE ${prefix}
+  GROUP BY c.id, c.code
+), numbered AS (
+  SELECT t.id, b.code, b.last_used + ROW_NUMBER() OVER (PARTITION BY t.company_id ORDER BY ${order}) AS n
+  FROM ${table} t JOIN base b ON b.company_id = t.company_id
+  WHERE t.id::text LIKE ${prefix}${kind === "PR" ? " AND t.status <> 'DRAFT'" : ""}
+)
+UPDATE ${table} t SET ${col} = n.code || '-${kind}-${year}-' || LPAD(n.n::text, 5, '0')
+FROM numbered n WHERE t.id = n.id;
+
+INSERT INTO company_sequences (company_id, sequence_name, calendar_year, last_value)
+SELECT c.id, '${kind}', ${year}, COALESCE(MAX(SPLIT_PART(x.${col}, '-', 4)::int) FILTER (WHERE x.${col} LIKE '%-${year}-%'), 0)
+FROM companies c LEFT JOIN ${table} x ON x.company_id = c.id
+GROUP BY c.id
+ON CONFLICT (company_id, sequence_name, calendar_year) DO UPDATE SET last_value = GREATEST(company_sequences.last_value, EXCLUDED.last_value);`);
+  }
+
+  s.push(`COMMIT;
+
+-- Check: should show ~${prs.length} requests and ~${pos.length} orders.
+SELECT (SELECT COUNT(*) FROM purchase_requests) AS requests,
+       (SELECT COUNT(*) FROM purchase_orders)   AS orders,
+       (SELECT COUNT(*) FROM audit_log)         AS audit_events,
+       (SELECT COUNT(*) FROM users)             AS users;`);
+  return s.join("\n\n") + "\n";
+}
+
 async function insertChunked<T>(rows: T[], insert: (chunk: T[]) => Promise<unknown>, size = 400) {
   for (let i = 0; i < rows.length; i += size) await insert(rows.slice(i, i + size));
 }
@@ -393,6 +503,15 @@ async function insertChunked<T>(rows: T[], insert: (chunk: T[]) => Promise<unkno
 async function main() {
   const reset = process.argv.includes("--reset");
   const year = new Date().getFullYear();
+
+  const sqlOut = process.argv[process.argv.indexOf("--sql") + 1];
+  if (process.argv.includes("--sql")) {
+    if (!sqlOut || sqlOut.startsWith("--")) throw new Error("Usage: --sql <output.sql>");
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(sqlOut, await buildSqlScript(year));
+    console.log(`Wrote ${sqlOut}. Paste it into the Neon SQL Editor (or psql -f) - no DB was touched.`);
+    return;
+  }
 
   // 1. People + vendors (idempotent)
   const passwordHash = await bcrypt.hash(ids.DEMO_PASSWORD, 10);
