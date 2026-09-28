@@ -15,12 +15,12 @@ export function CompanySwitcher({
   const [pending, startTransition] = useTransition();
 
   if (companies.length <= 1) {
-    return <span className="text-sm text-graphite">{companies[0]?.name ?? "No company"}</span>;
+    return <span className="text-sm text-graphite truncate max-w-[9rem] sm:max-w-none">{companies[0]?.name ?? "No company"}</span>;
   }
 
   return (
     <select
-      className="text-sm border border-line rounded px-2 py-1.5 bg-surface disabled:opacity-50"
+      className="text-sm border border-line rounded px-2 py-1.5 bg-surface disabled:opacity-50 max-w-[9rem] sm:max-w-none"
       value={activeCompanyId ?? ""}
       disabled={pending}
       onChange={(e) => {

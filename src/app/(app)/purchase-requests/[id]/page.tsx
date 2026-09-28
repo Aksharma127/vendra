@@ -97,7 +97,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
         <p className="text-sm text-graphite">{pr.itemDescription}</p>
       </div>
 
-      <Panel className="p-5 grid grid-cols-3 gap-5">
+      <Panel className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-5">
         <Field label="Division" value={pr.divisionName} />
         <Field label="Requester" value={pr.requesterName} />
         <Field label="Category" value={pr.category} />
@@ -144,7 +144,7 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
       {po && (
         <Panel className="p-5">
           <div className="text-sm font-medium text-ink mb-3">Purchase Order</div>
-          <div className="grid grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <Field label="PO Number" value={po.poNumber ?? "—"} />
             <Field label="Status" value={<StatusTag status={po.status} />} />
             <Field label="Delivery date" value={po.deliveryDate} />

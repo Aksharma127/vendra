@@ -53,7 +53,7 @@ export default async function PODetailPage({ params }: { params: Promise<{ id: s
         <StatusTag status={po.status} />
       </div>
 
-      <Panel className="p-5 grid grid-cols-3 gap-5">
+      <Panel className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-5">
         <Field label="Vendor" value={po.vendorName} />
         <Field
           label="Purchase Request"

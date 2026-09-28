@@ -39,7 +39,7 @@ export function NewPRForm({ divisions }: { divisions: { id: string; name: string
         <label className={labelClass}>Item description</label>
         <textarea name="itemDescription" required rows={3} className={inputClass} />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className={labelClass}>Quantity</label>
           <input name="quantity" type="number" min="0.01" step="0.01" required className={inputClass} />

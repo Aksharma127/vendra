@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { MenuNode } from "@/lib/auth-context";
+import { useMobileNav } from "./MobileNavContext";
 
 // Small inline icon set, matched by label. Not database-driven (icons aren't
 // part of the menu schema) - a cosmetic detail, not a functional one.
@@ -45,15 +46,29 @@ function isActive(pathname: string, path: string | null) {
 
 export function Sidebar({ tree }: { tree: MenuNode[] }) {
   const pathname = usePathname();
+  const { open, close } = useMobileNav();
 
   return (
-    <aside className="w-60 shrink-0 border-r border-line bg-surface flex flex-col">
-      <div className="px-5 py-4 border-b border-line flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-accent flex items-center justify-center text-white text-xs font-semibold transition-transform duration-200 hover:scale-105">
-          V
+    <>
+      {/* Backdrop, mobile only, only while the drawer is open */}
+      {open && (
+        <div
+          className="fixed inset-0 z-30 bg-ink/40 lg:hidden animate-fade-in"
+          onClick={close}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`w-60 shrink-0 border-r border-line bg-surface flex flex-col fixed inset-y-0 left-0 z-40 transition-transform duration-200 ease-out lg:static lg:translate-x-0 ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="px-5 py-4 border-b border-line flex items-center gap-2">
+          <div className="w-6 h-6 rounded bg-accent flex items-center justify-center text-white text-xs font-semibold transition-transform duration-200 hover:scale-105">
+            V
+          </div>
+          <span className="text-base font-semibold text-ink tracking-tight">Vendra</span>
         </div>
-        <span className="text-base font-semibold text-ink tracking-tight">Vendra</span>
-      </div>
       <nav className="flex-1 overflow-y-auto py-3">
         {tree.map((node) =>
           node.path ? (
@@ -101,10 +116,11 @@ export function Sidebar({ tree }: { tree: MenuNode[] }) {
           <div className="px-5 py-3 text-sm text-graphite">No menu items available.</div>
         )}
       </nav>
-      <div className="px-5 py-3 border-t border-line flex items-center gap-2 text-[11px] text-graphite/70">
-        <span className="h-1.5 w-1.5 rounded-full bg-success" />
-        Vendra Console
-      </div>
-    </aside>
+        <div className="px-5 py-3 border-t border-line flex items-center gap-2 text-[11px] text-graphite/70">
+          <span className="h-1.5 w-1.5 rounded-full bg-success" />
+          Vendra Console
+        </div>
+      </aside>
+    </>
   );
 }

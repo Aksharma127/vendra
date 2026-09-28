@@ -27,7 +27,7 @@ export function ShellSkeleton() {
         </header>
         <main className="flex-1 p-6">
           <SkeletonBlock className="h-5 w-48 mb-4" />
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <SkeletonBlock key={i} className="h-24 w-full" />
             ))}

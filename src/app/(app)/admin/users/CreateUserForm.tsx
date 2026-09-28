@@ -13,7 +13,7 @@ export function CreateUserForm({ companies }: { companies: { id: string; name: s
 
   return (
     <form action={formAction} className="space-y-4">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <label className={labelClass}>Full name</label>
           <input name="name" required className={inputClass} />

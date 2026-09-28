@@ -55,11 +55,11 @@ export default async function AdminUsersPage() {
         <PanelHeader>
           <span className="text-sm font-medium text-ink">All users</span>
         </PanelHeader>
-        <div className="px-5 py-4">
+        <div className="px-5 py-4 overflow-x-auto">
           {allUsers.length === 0 ? (
             <EmptyState message="No users yet." />
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-graphite">
                   <th className="py-2 pr-4 font-medium">Name</th>
@@ -91,14 +91,14 @@ export default async function AdminUsersPage() {
         <PanelHeader>
           <span className="text-sm font-medium text-ink">User Role Assignment</span>
         </PanelHeader>
-        <div className="px-5 py-4 space-y-4">
+        <div className="px-5 py-4 space-y-4 overflow-x-auto">
           {canEdit && (
             <AssignRoleForm users={allUsers} roles={allRoles} companies={allCompanies} divisions={allDivisions} />
           )}
           {assignments.length === 0 ? (
             <EmptyState message="No role assignments yet." />
           ) : (
-            <table className="w-full text-sm mt-2">
+            <table className="w-full min-w-[480px] text-sm mt-2">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-graphite">
                   <th className="py-2 pr-4 font-medium">User</th>

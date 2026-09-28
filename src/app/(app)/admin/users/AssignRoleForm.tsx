@@ -21,7 +21,7 @@ export function AssignRoleForm({
   const [state, formAction, pending] = useActionState(assignRoleAction, undefined);
 
   return (
-    <form action={formAction} className="grid grid-cols-5 gap-3 items-end">
+    <form action={formAction} className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
       <div>
         <label className="block text-xs text-graphite mb-1">User</label>
         <select name="userId" required className={inputClass}>

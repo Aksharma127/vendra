@@ -124,13 +124,13 @@ export default async function DashboardPage() {
           Structural information only. Administrators do not have visibility into business
           transactions, requests, orders, or spend.
         </p>
-        <div className="grid grid-cols-4 gap-4 mb-6 stagger-children">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 stagger-children">
           <Stat label="Companies" value={companyCount.n} accent={0} />
           <Stat label="Divisions" value={divisionCount.n} accent={1} />
           <Stat label="Users" value={userCount.n} accent={2} />
           <Stat label="Active companies" value={activeCompanies.length} accent={3} />
         </div>
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
           <Panel className="p-5">
             <div className="text-sm font-medium text-ink mb-3">Quick actions</div>
             <div className="space-y-2">
@@ -262,14 +262,14 @@ export default async function DashboardPage() {
       <p className="text-sm text-graphite mb-6">
         {ctx.capabilities.has("pr:view-all") ? "Company-wide view for the active company." : "Your requests only."}
       </p>
-      <div className="grid grid-cols-4 gap-4 mb-6 stagger-children">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 stagger-children">
         <Stat label="Pending division approval" value={pendingDivision} accent={0} />
         <Stat label="Pending finance approval" value={pendingFinance} accent={1} />
         <Stat label="Approved, awaiting PO" value={approvedPendingPO} accent={2} />
         <Stat label="Purchase orders issued" value={issuedPOs} accent={3} />
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
         <div className="space-y-4">
           <Panel className="p-5">
             <div className="text-sm font-medium text-ink mb-1">Open request value</div>

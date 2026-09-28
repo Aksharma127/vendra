@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { AuthContext } from "@/lib/auth-context";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { SignOutButton } from "./SignOutButton";
+import { MobileNavToggle } from "./MobileNavToggle";
 
 export function Header({
   ctx,
@@ -11,9 +12,12 @@ export function Header({
   pendingApprovalCount?: number;
 }) {
   return (
-    <header className="h-14 border-b border-line bg-surface flex items-center justify-between px-5 shrink-0 shadow-[0_1px_3px_rgba(21,24,33,0.05)] relative z-10">
-      <CompanySwitcher companies={ctx.authorizedCompanies} activeCompanyId={ctx.activeCompanyId} />
-      <div className="flex items-center gap-4">
+    <header className="h-14 border-b border-line bg-surface flex items-center justify-between gap-2 px-3 sm:px-5 shrink-0 shadow-[0_1px_3px_rgba(21,24,33,0.05)] relative z-10">
+      <div className="flex items-center gap-2 min-w-0">
+        <MobileNavToggle />
+        <CompanySwitcher companies={ctx.authorizedCompanies} activeCompanyId={ctx.activeCompanyId} />
+      </div>
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         <Link
           href="/purchase-requests/queue"
           className="relative flex items-center justify-center h-8 w-8 rounded-full text-graphite hover:text-ink hover:bg-page-bg transition-all duration-150 hover:scale-105 active:scale-95"
@@ -42,9 +46,9 @@ export function Header({
             </span>
           )}
         </Link>
-        <div className="text-sm text-right">
-          <div className="text-ink">{ctx.userName}</div>
-          <div className="text-xs text-graphite">{ctx.roleNames.join(", ") || "No role assigned"}</div>
+        <div className="text-sm text-right hidden sm:block max-w-[9rem] md:max-w-none">
+          <div className="text-ink truncate">{ctx.userName}</div>
+          <div className="text-xs text-graphite truncate">{ctx.roleNames.join(", ") || "No role assigned"}</div>
         </div>
         <SignOutButton />
       </div>

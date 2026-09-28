@@ -12,7 +12,7 @@ export function DivisionForm({ companies }: { companies: { id: string; name: str
   const [state, formAction, pending] = useActionState(createDivisionAction, undefined);
 
   return (
-    <form action={formAction} className="grid grid-cols-3 gap-4">
+    <form action={formAction} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <div>
         <label className={labelClass}>Company</label>
         <select name="companyId" required className={inputClass}>

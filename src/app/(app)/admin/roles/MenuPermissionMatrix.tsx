@@ -60,7 +60,8 @@ export function MenuPermissionMatrix({
         ))}
       </div>
 
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[640px] text-sm">
         <thead>
           <tr className="border-b border-line text-left text-xs text-graphite">
             <th className="py-2 pr-4 font-medium">Menu item</th>
@@ -96,6 +97,7 @@ export function MenuPermissionMatrix({
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

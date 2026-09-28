@@ -5,6 +5,7 @@ import { getPendingApprovalCount } from "@/lib/approvals";
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
 import { ShellSkeleton } from "@/components/ShellSkeleton";
+import { MobileNavProvider } from "@/components/MobileNavContext";
 
 // The session/RBAC lookup here is runtime data (reads the session cookie),
 // so Next.js cannot show an instant loading state for it automatically -
@@ -21,13 +22,15 @@ async function Shell({ children }: { children: React.ReactNode }) {
   const pendingApprovalCount = await getPendingApprovalCount(ctx);
 
   return (
-    <div className="flex h-full min-h-screen">
-      <Sidebar tree={ctx.menuTree} />
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header ctx={ctx} pendingApprovalCount={pendingApprovalCount} />
-        <main className="flex-1 overflow-y-auto p-6 animate-fade-in">{children}</main>
+    <MobileNavProvider>
+      <div className="flex h-full min-h-screen">
+        <Sidebar tree={ctx.menuTree} />
+        <div className="flex-1 flex flex-col min-w-0">
+          <Header ctx={ctx} pendingApprovalCount={pendingApprovalCount} />
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 animate-fade-in">{children}</main>
+        </div>
       </div>
-    </div>
+    </MobileNavProvider>
   );
 }
 

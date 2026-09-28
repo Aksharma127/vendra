@@ -19,7 +19,7 @@ export function PRTable({ rows, emptyMessage }: { rows: PRRow[]; emptyMessage: s
   if (rows.length === 0) return <EmptyState message={emptyMessage} />;
 
   return (
-    <table className="w-full text-sm">
+    <table className="w-full min-w-[640px] text-sm">
       <thead>
         <tr className="border-b border-line text-left text-xs text-graphite">
           <th className="py-2 pr-4 font-medium">PR Number</th>

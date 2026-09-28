@@ -12,7 +12,7 @@ export function VendorForm() {
   const [state, formAction, pending] = useActionState(createVendorAction, undefined);
 
   return (
-    <form action={formAction} className="grid grid-cols-2 gap-4">
+    <form action={formAction} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
         <label className={labelClass}>Vendor name</label>
         <input name="name" required className={inputClass} />

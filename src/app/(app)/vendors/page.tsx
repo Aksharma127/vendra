@@ -29,11 +29,11 @@ export default async function VendorsPage() {
         <PanelHeader>
           <span className="text-sm font-medium text-ink">Vendors for the active company</span>
         </PanelHeader>
-        <div className="px-5 py-4">
+        <div className="px-5 py-4 overflow-x-auto">
           {rows.length === 0 ? (
             <EmptyState message="No vendors yet." />
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-graphite">
                   <th className="py-2 pr-4 font-medium">Name</th>

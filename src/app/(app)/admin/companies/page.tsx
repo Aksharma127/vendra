@@ -31,11 +31,11 @@ export default async function AdminCompaniesPage() {
         <PanelHeader>
           <span className="text-sm font-medium text-ink">All companies</span>
         </PanelHeader>
-        <div className="px-5 py-4">
+        <div className="px-5 py-4 overflow-x-auto">
           {rows.length === 0 ? (
             <EmptyState message="No companies yet." />
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-graphite">
                   <th className="py-2 pr-4 font-medium">Name</th>
