@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import type { MenuNode } from "@/lib/auth-context";
 import { useMobileNav } from "./MobileNavContext";
@@ -37,6 +37,21 @@ function GroupIcon({ label }: { label: string }) {
         </svg>
       );
   }
+}
+
+// Must render inside a <Link>: shows a small spinner on the item that was
+// tapped until its page commits. Always mounted, only opacity toggles, so it
+// never shifts the label.
+function PendingHint() {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      aria-hidden="true"
+      className={`ml-auto h-3 w-3 shrink-0 rounded-full border-[1.5px] border-current border-r-transparent animate-spin transition-opacity duration-150 ${
+        pending ? "opacity-70" : "opacity-0"
+      }`}
+    />
+  );
 }
 
 function isActive(pathname: string, path: string | null) {
@@ -85,6 +100,7 @@ export function Sidebar({ tree, buildId }: { tree: MenuNode[]; buildId?: string 
             <Link
               key={node.id}
               href={node.path}
+              onClick={close}
               className={`relative flex items-center gap-2.5 mx-2 mb-0.5 px-3 py-2 text-sm rounded transition-all duration-150 ${
                 isActive(pathname, node.path)
                   ? "bg-accent text-white"
@@ -92,10 +108,11 @@ export function Sidebar({ tree, buildId }: { tree: MenuNode[]; buildId?: string 
               }`}
             >
               {isActive(pathname, node.path) && (
-                <span className="absolute -left-2 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-accent" />
+                <span className="absolute -left-2 top-1/2 [transform:translateY(-50%)] h-4 w-0.5 rounded-full bg-accent" />
               )}
               <GroupIcon label={node.label} />
               {node.label}
+              <PendingHint />
             </Link>
           ) : (
             <div key={node.id} className="mb-4 mt-2">
@@ -107,16 +124,18 @@ export function Sidebar({ tree, buildId }: { tree: MenuNode[]; buildId?: string 
                 <Link
                   key={child.id}
                   href={child.path ?? "#"}
-                  className={`relative block mx-2 mb-0.5 px-3 py-2 pl-9 text-sm rounded transition-all duration-150 ${
+                  onClick={close}
+                  className={`relative flex items-center mx-2 mb-0.5 px-3 py-2 pl-9 text-sm rounded transition-all duration-150 ${
                     isActive(pathname, child.path)
                       ? "bg-accent text-white"
                       : "text-ink hover:bg-page-bg hover:pl-10"
                   }`}
                 >
                   {isActive(pathname, child.path) && (
-                    <span className="absolute -left-2 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-accent" />
+                    <span className="absolute -left-2 top-1/2 [transform:translateY(-50%)] h-4 w-0.5 rounded-full bg-accent" />
                   )}
                   {child.label}
+                  <PendingHint />
                 </Link>
               ))}
             </div>

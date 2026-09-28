@@ -29,6 +29,15 @@ divisions, four vendors, and six users. Password for all: `vendra123`.
 | zara@vendra.demo | Auditor | Read-only, audit trail + reports |
 | admin@vendra.demo | Admin | Structural admin only — no visibility into requests, orders, or spend (by design) |
 
+**Demo history (`npm run db:seed:demo`):** adds seven more colleagues
+(kabir, ananya, vikram, sana, dev, ishaan, nisha `@vendra.demo`, same
+password), five more vendors, and ~400 purchase requests / ~300 purchase
+orders spread over the last six months across all four divisions. Every
+request is walked through the real workflow (division → finance → PO →
+delivered → closed, with rejections, returns and withdrawals), so the audit
+trail, numbering and dashboard charts are all consistent. Idempotent; pass
+`-- --reset` to regenerate it relative to today (e.g. right before a demo).
+
 **Pre-seeded data:** the database already has purchase requests sitting at
 every stage of the workflow — a draft, one awaiting division approval, one
 awaiting finance approval, one approved and awaiting a PO, one with an
@@ -52,6 +61,7 @@ Requires Node 20+ and a Postgres 16 database.
 npm install
 cp .env.example .env   # fill in DATABASE_URL
 npm run db:setup       # push schema, apply constraints, seed demo data
+npm run db:seed:demo   # optional: six months of realistic procurement history
 npm run dev
 ```
 
@@ -76,6 +86,7 @@ From your local machine, pointed at the **production** database:
 
 ```bash
 DATABASE_URL="postgresql://...sslmode=require" npm run db:setup
+DATABASE_URL="postgresql://...sslmode=require" npm run db:seed:demo
 ```
 
 This runs, in order: `drizzle-kit push` (creates all tables/enums), the

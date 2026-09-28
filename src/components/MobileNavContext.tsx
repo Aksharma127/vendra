@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState } from "react";
 import { usePathname } from "next/navigation";
 
 interface MobileNavState {
@@ -19,11 +19,15 @@ export function MobileNavProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  // Close the drawer automatically on navigation, so tapping a link doesn't
-  // leave the overlay sitting open over the new page.
-  useEffect(() => {
+  // Close the drawer automatically on navigation (back/forward, redirects),
+  // so the overlay never sits open over a new page. Sidebar links also close
+  // it on tap. Adjusting state during render on a prop change is React's
+  // recommended alternative to a setState-in-effect here.
+  const [lastPath, setLastPath] = useState(pathname);
+  if (pathname !== lastPath) {
+    setLastPath(pathname);
     setOpen(false);
-  }, [pathname]);
+  }
 
   return (
     <MobileNavContext.Provider value={{ open, toggle: () => setOpen((o) => !o), close: () => setOpen(false) }}>

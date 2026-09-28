@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
 import { ShellSkeleton } from "@/components/ShellSkeleton";
 import { MobileNavProvider } from "@/components/MobileNavContext";
+import { NavProgress } from "@/components/NavProgress";
 
 // The session/RBAC lookup here is runtime data (reads the session cookie),
 // so Next.js cannot show an instant loading state for it automatically -
@@ -41,8 +42,12 @@ async function Shell({ children }: { children: React.ReactNode }) {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<ShellSkeleton />}>
-      <Shell>{children}</Shell>
-    </Suspense>
+    <>
+      {/* Outside the Suspense boundary so it is live from first paint. */}
+      <NavProgress />
+      <Suspense fallback={<ShellSkeleton />}>
+        <Shell>{children}</Shell>
+      </Suspense>
+    </>
   );
 }

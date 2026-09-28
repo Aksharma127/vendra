@@ -48,6 +48,13 @@ body {
   border-color: var(--color-line);
 }
 
+/* Base skeleton colour outside any media query, so placeholders stay visible
+   even on browsers that don't understand prefers-reduced-motion. */
+.skeleton {
+  background-color: color-mix(in srgb, var(--color-line) 60%, transparent);
+  border-radius: 4px;
+}
+
 /* ---------- Motion: understated, corporate — never bouncy ---------- */
 @media (prefers-reduced-motion: no-preference) {
   @keyframes fade-in-up {
@@ -92,6 +99,69 @@ body {
     animation: soft-pulse 2.2s ease-out infinite;
   }
 
+  /* Charts: line draw-in, fade, bar grow. transform/dashoffset only. */
+  @keyframes chart-draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes chart-grow-x {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  .chart-draw {
+    stroke-dasharray: 1;
+    animation: chart-draw 0.9s cubic-bezier(0.3, 0.7, 0.2, 1) both;
+  }
+  .chart-fade {
+    animation: fade-in 0.5s ease-out 0.25s both;
+  }
+  .chart-grow-x {
+    transform-origin: left center;
+    animation: chart-grow-x 0.6s cubic-bezier(0.3, 0.7, 0.2, 1) both;
+  }
+
+  /* Skeleton shimmer: a light sweep across placeholder blocks. */
+  @keyframes shimmer {
+    from {
+      background-position: 150% 0;
+    }
+    to {
+      background-position: -50% 0;
+    }
+  }
+  .skeleton {
+    background-color: color-mix(in srgb, var(--color-line) 60%, transparent);
+    background-image: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.55) 50%, transparent 100%);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: shimmer 1.3s ease-in-out infinite;
+  }
+
+  /* Top-of-page progress bar shown from click until the new route commits. */
+  @keyframes nav-progress {
+    0% {
+      transform: scaleX(0);
+    }
+    40% {
+      transform: scaleX(0.55);
+    }
+    100% {
+      transform: scaleX(0.9);
+    }
+  }
+  .nav-progress {
+    transform-origin: left center;
+    animation: nav-progress 2.4s cubic-bezier(0.1, 0.6, 0.2, 1) both;
+  }
+
   .stagger-children > * {
     animation: fade-in-up 0.15s ease-out both;
   }
@@ -115,8 +185,19 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-in-up,
   .animate-fade-in,
-  .animate-soft-pulse {
+  .animate-soft-pulse,
+  .chart-draw,
+  .chart-fade,
+  .chart-grow-x,
+  .nav-progress {
     animation: none !important;
+  }
+  .chart-draw {
+    stroke-dasharray: none;
+  }
+  .skeleton {
+    animation: none !important;
+    background-color: color-mix(in srgb, var(--color-line) 60%, transparent);
   }
 }
 
