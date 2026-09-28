@@ -162,6 +162,24 @@ body {
     animation: nav-progress 2.4s cubic-bezier(0.1, 0.6, 0.2, 1) both;
   }
 
+  /* Login background: slow drift of soft colour fields. transform-only so it
+     stays on the compositor (cheap on low-end phones, no layout/paint). */
+  @keyframes drift-a {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(6%, 8%, 0) scale(1.08); }
+  }
+  @keyframes drift-b {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+    50% { transform: translate3d(-8%, -5%, 0) scale(0.95); }
+  }
+  @keyframes drift-c {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50% { transform: translate3d(-5%, 7%, 0) scale(1.1); }
+  }
+  .drift-a { animation: drift-a 22s ease-in-out infinite; }
+  .drift-b { animation: drift-b 26s ease-in-out infinite; }
+  .drift-c { animation: drift-c 30s ease-in-out infinite; }
+
   .stagger-children > * {
     animation: fade-in-up 0.15s ease-out both;
   }
@@ -186,6 +204,9 @@ body {
   .animate-fade-in-up,
   .animate-fade-in,
   .animate-soft-pulse,
+  .drift-a,
+  .drift-b,
+  .drift-c,
   .chart-draw,
   .chart-fade,
   .chart-grow-x,

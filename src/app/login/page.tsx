@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth-context";
 import { LoginForm } from "./LoginForm";
+import { Aurora } from "./Aurora";
 
 const DEMO_ACCOUNTS = [
   { email: "priya@vendra.demo", role: "Employee" },
@@ -28,8 +29,12 @@ export default async function LoginPage() {
           }}
         />
         <div
-          className="absolute -top-24 -right-24 w-96 h-96 rounded-full opacity-20 animate-fade-in"
-          style={{ background: "radial-gradient(circle, rgba(255,255,255,0.5) 0%, transparent 70%)" }}
+          className="absolute -top-24 -right-24 w-[28rem] h-[28rem] rounded-full drift-b"
+          style={{ background: "radial-gradient(closest-side, rgba(45,190,175,0.35), rgba(45,190,175,0) 70%)" }}
+        />
+        <div
+          className="absolute -bottom-32 -left-24 w-[32rem] h-[32rem] rounded-full drift-c"
+          style={{ background: "radial-gradient(closest-side, rgba(150,110,230,0.32), rgba(150,110,230,0) 70%)" }}
         />
         <div className="relative animate-fade-in-up">
           <div className="w-9 h-9 rounded bg-white/15 flex items-center justify-center text-white font-semibold mb-8 backdrop-blur-sm">
@@ -46,8 +51,9 @@ export default async function LoginPage() {
       </div>
 
       {/* Form panel */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm animate-fade-in-up">
+      <div className="flex-1 flex items-center justify-center px-6 py-12 relative overflow-hidden">
+        <Aurora />
+        <div className="w-full max-w-sm animate-fade-in-up relative">
           <div className="mb-8 lg:hidden">
             <h1 className="text-xl font-semibold text-ink">Vendra</h1>
             <p className="text-sm text-graphite mt-1">Procurement & Vendor Operations Console</p>
@@ -56,10 +62,10 @@ export default async function LoginPage() {
             <h2 className="text-lg font-semibold text-ink">Sign in</h2>
             <p className="text-sm text-graphite mt-1">Enter your credentials to access the console.</p>
           </div>
-          <div className="bg-surface border border-line rounded-lg p-6 shadow-sm panel-interactive">
+          <div className="bg-surface/85 backdrop-blur-md border border-line rounded-lg p-6 shadow-[0_8px_30px_-12px_rgba(21,24,33,0.25)] panel-interactive">
             <LoginForm />
           </div>
-          <div className="mt-6 rounded-lg border border-line bg-surface/60 p-4">
+          <div className="mt-6 rounded-lg border border-line bg-surface/70 backdrop-blur-md p-4">
             <p className="text-xs font-medium text-graphite mb-2">Demo accounts · password vendra123</p>
             <div className="flex flex-wrap gap-1.5">
               {DEMO_ACCOUNTS.map((acct) => (
