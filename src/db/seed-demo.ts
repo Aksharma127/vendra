@@ -16,6 +16,7 @@
  *
  * Requires the base seed first:  npm run db:seed
  * Run with:                      npm run db:seed:demo  [-- --reset]
+ * Keep it current later:         npm run db:seed:demo -- --roll-forward [out.sql]
  */
 import "dotenv/config";
 import bcrypt from "bcryptjs";
@@ -496,6 +497,39 @@ SELECT (SELECT COUNT(*) FROM purchase_requests) AS requests,
   return s.join("\n\n") + "\n";
 }
 
+/**
+ * Moves the generated history forward in time so its newest event lands on
+ * today, keeping every gap between events (and time of day) intact. Whole
+ * days only, so nothing ends up in the future. Real rows - anything not
+ * created by this script - are never touched.
+ *
+ * Why: the history is generated relative to the day it was seeded. A week
+ * later "Ordered this month" reads ₹0 and the trend line falls off a cliff,
+ * which looks broken in a demo. Safe to run any number of times; a second run
+ * on the same day shifts by zero days.
+ */
+export const ROLL_FORWARD_SQL = `-- Vendra demo data: roll the generated history forward to today.
+-- Only touches rows created by seed-demo (ids starting 80000000- / 81000000-).
+BEGIN;
+CREATE TEMP TABLE _shift ON COMMIT DROP AS
+SELECT GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (now() - MAX(created_at))) / 86400))::int * INTERVAL '1 day' AS d
+FROM audit_log
+WHERE entity_id::text LIKE '80000000-%' OR entity_id::text LIKE '81000000-%';
+
+UPDATE purchase_requests SET created_at = created_at + (SELECT d FROM _shift), updated_at = updated_at + (SELECT d FROM _shift)
+WHERE id::text LIKE '80000000-%';
+UPDATE purchase_orders SET created_at = created_at + (SELECT d FROM _shift), updated_at = updated_at + (SELECT d FROM _shift)
+WHERE id::text LIKE '81000000-%';
+UPDATE workflow_history SET created_at = created_at + (SELECT d FROM _shift)
+WHERE entity_id::text LIKE '80000000-%' OR entity_id::text LIKE '81000000-%';
+UPDATE audit_log SET created_at = created_at + (SELECT d FROM _shift)
+WHERE entity_id::text LIKE '80000000-%' OR entity_id::text LIKE '81000000-%';
+
+SELECT (SELECT d FROM _shift) AS shifted_by,
+       (SELECT MAX(created_at) FROM audit_log WHERE entity_id::text LIKE '80000000-%') AS newest_event_now;
+COMMIT;
+`;
+
 async function insertChunked<T>(rows: T[], insert: (chunk: T[]) => Promise<unknown>, size = 400) {
   for (let i = 0; i < rows.length; i += size) await insert(rows.slice(i, i + size));
 }
@@ -503,6 +537,22 @@ async function insertChunked<T>(rows: T[], insert: (chunk: T[]) => Promise<unkno
 async function main() {
   const reset = process.argv.includes("--reset");
   const year = new Date().getFullYear();
+
+  if (process.argv.includes("--roll-forward")) {
+    const out = process.argv[process.argv.indexOf("--roll-forward") + 1];
+    if (out && !out.startsWith("--")) {
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(out, ROLL_FORWARD_SQL);
+      console.log(`Wrote ${out}. Paste it into the Neon SQL Editor - no DB was touched.`);
+    } else {
+      // postgres-js won't run BEGIN/COMMIT through unsafe(); use its own transaction.
+      const body = ROLL_FORWARD_SQL.replace(/^(BEGIN|COMMIT);$/gm, "");
+      const result = await sql.begin((tx) => tx.unsafe(body));
+      const summary = (result as unknown as { shifted_by: string; newest_event_now: Date }[][]).at(-1)?.[0];
+      console.log("Rolled demo history forward:", summary);
+    }
+    return;
+  }
 
   const sqlOut = process.argv[process.argv.indexOf("--sql") + 1];
   if (process.argv.includes("--sql")) {

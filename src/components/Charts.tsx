@@ -65,7 +65,15 @@ export function AreaChart({
           </g>
         ))}
         {labels.map((l, i) => (
-          <text key={i} x={x(i)} y={H - 6} textAnchor="middle" fontSize="11" fill="var(--color-graphite)">
+          <text
+            key={i}
+            x={x(i)}
+            y={H - 6}
+            // Edge labels anchor inward so a longer last label ("Oct, so far") isn't clipped.
+            textAnchor={labels.length > 1 && i === labels.length - 1 ? "end" : i === 0 && labels.length > 1 ? "start" : "middle"}
+            fontSize="11"
+            fill="var(--color-graphite)"
+          >
             {l}
           </text>
         ))}

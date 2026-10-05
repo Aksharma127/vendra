@@ -35,6 +35,7 @@ export default async function PODetailPage({ params }: { params: Promise<{ id: s
       prId: purchaseRequests.id,
       divisionName: divisions.name,
       requesterName: users.name,
+      requesterId: purchaseRequests.requesterId,
     })
     .from(purchaseOrders)
     .innerJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
@@ -45,6 +46,11 @@ export default async function PODetailPage({ params }: { params: Promise<{ id: s
     .limit(1);
 
   if (!po || !ctx.authorizedCompanyIds.includes(po.companyId)) notFound();
+  // Same scope as the list: company-wide roles see every PO, everyone else
+  // only the PO raised against their own request. Without this, anyone could
+  // open any PO by guessing the URL even though the sidebar hides the page.
+  const canViewAny = ctx.capabilities.has("pr:view-all") || ctx.capabilities.has("po:issue");
+  if (!canViewAny && po.requesterId !== ctx.userId) notFound();
 
   return (
     <div className="max-w-3xl space-y-6">

@@ -12,7 +12,7 @@ project.
 
 ## Live demo
 
-**App:** https://vendra-2b1sleow8-aksharma127s-projects.vercel.app/login
+**App:** https://vendra-aksharma127s-projects.vercel.app/login
 **Repo:** https://github.com/Aksharma127/vendra
 
 ## Demo accounts
@@ -37,6 +37,13 @@ request is walked through the real workflow (division → finance → PO →
 delivered → closed, with rejections, returns and withdrawals), so the audit
 trail, numbering and dashboard charts are all consistent. Idempotent; pass
 `-- --reset` to regenerate it relative to today (e.g. right before a demo).
+
+The history is dated relative to the day it was seeded, so a week later
+"Ordered this month" reads ₹0. `npm run db:seed:demo -- --roll-forward`
+shifts only the generated rows forward by whole days so the newest event is
+today again. Real data is never touched, and a second run on the same day does
+nothing. Add a file path (`-- --roll-forward refresh.sql`) to get the same
+thing as SQL to paste into a hosted SQL editor instead.
 
 **Pre-seeded data:** the database already has purchase requests sitting at
 every stage of the workflow — a draft, one awaiting division approval, one

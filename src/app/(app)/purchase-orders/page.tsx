@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { purchaseOrders, vendors, purchaseRequests } from "@/db/schema";
 import { requireAuthContext } from "@/lib/auth-context";
@@ -11,6 +11,12 @@ import { formatMoney, formatDate } from "@/lib/format";
 export default async function PurchaseOrdersPage() {
   const ctx = await requireAuthContext();
   if (!ctx.activeCompanyId) return <EmptyState message="No active company." />;
+  // Company-wide roles see every PO; anyone else only POs raised against
+  // their own requests (the page isn't in their sidebar, but the URL works).
+  const canViewAny = ctx.capabilities.has("pr:view-all") || ctx.capabilities.has("po:issue");
+  const scope = canViewAny
+    ? eq(purchaseOrders.companyId, ctx.activeCompanyId)
+    : and(eq(purchaseOrders.companyId, ctx.activeCompanyId), eq(purchaseRequests.requesterId, ctx.userId));
 
   const rows = await db
     .select({
@@ -26,8 +32,8 @@ export default async function PurchaseOrdersPage() {
     .from(purchaseOrders)
     .innerJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
     .innerJoin(purchaseRequests, eq(purchaseOrders.prId, purchaseRequests.id))
-    .where(eq(purchaseOrders.companyId, ctx.activeCompanyId))
-    .orderBy(purchaseOrders.createdAt);
+    .where(scope)
+    .orderBy(desc(purchaseOrders.createdAt));
 
   return (
     <div>
@@ -52,7 +58,7 @@ export default async function PurchaseOrdersPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.reverse().map((r) => (
+                {rows.map((r) => (
                   <tr key={r.id} className="border-b border-line last:border-0 hover:bg-page-bg">
                     <td className="py-2.5 pr-4">
                       <Link href={`/purchase-orders/${r.id}`} className="text-accent hover:underline font-mono text-xs">

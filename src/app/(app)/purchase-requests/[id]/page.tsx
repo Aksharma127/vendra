@@ -61,6 +61,8 @@ export default async function PRDetailPage({ params }: { params: Promise<{ id: s
     ctx.capabilities.has("pr:approve-finance") ||
     ctx.capabilities.has("pr:view-all");
   if (!isOwner && !canSeeAsQueue) notFound();
+  // A draft is private to its author until it's submitted.
+  if (!isOwner && pr.status === "DRAFT") notFound();
 
   const history = await db
     .select({

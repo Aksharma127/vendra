@@ -34,7 +34,7 @@ export function PRTable({ rows, emptyMessage }: { rows: PRRow[]; emptyMessage: s
       <tbody>
         {rows.map((r) => (
           <tr key={r.id} className="border-b border-line last:border-0 hover:bg-page-bg">
-            <td className="py-2.5 pr-4">
+            <td className="py-2.5 pr-4 whitespace-nowrap">
               <Link href={`/purchase-requests/${r.id}`} className="text-accent hover:underline font-mono text-xs">
                 {r.prNumber ?? "DRAFT"}
               </Link>

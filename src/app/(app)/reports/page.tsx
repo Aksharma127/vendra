@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { purchaseRequests, divisions, users, companies, workflowHistory } from "@/db/schema";
 import { requireAuthContext } from "@/lib/auth-context";
@@ -50,7 +50,11 @@ export default async function ReportsPage() {
   // other - fetch together instead of one round trip at a time.
   const [allPRs, companyRows, divisionRows] = await Promise.all([
     ctx.authorizedCompanyIds.length > 0
-      ? db.select().from(purchaseRequests).where(inArray(purchaseRequests.companyId, ctx.authorizedCompanyIds))
+      ? // Drafts aren't requests yet (and are private to their author), so reports skip them.
+        db
+          .select()
+          .from(purchaseRequests)
+          .where(and(inArray(purchaseRequests.companyId, ctx.authorizedCompanyIds), ne(purchaseRequests.status, "DRAFT")))
       : Promise.resolve([]),
     db.select().from(companies).where(inArray(companies.id, ctx.authorizedCompanyIds)),
     ctx.activeCompanyId

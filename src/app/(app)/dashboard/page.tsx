@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, count, desc, eq, inArray, sum } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne, or, sum } from "drizzle-orm";
 import { db } from "@/db";
 import {
   companies,
@@ -183,7 +183,8 @@ function lastMonths(n: number) {
     const d = new Date(now.getFullYear(), now.getMonth() - (n - 1 - i), 1);
     return {
       key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-      label: d.toLocaleDateString("en-IN", { month: "short" }),
+      // The current month is partial - say so, or its dip reads like a crash.
+      label: d.toLocaleDateString("en-IN", { month: "short" }) + (i === n - 1 ? ", so far" : ""),
     };
   });
 }
@@ -280,7 +281,8 @@ export default async function DashboardPage() {
   const canViewAll = ctx.capabilities.has("pr:view-all");
   const scopePr = companyId
     ? canViewAll
-      ? eq(purchaseRequests.companyId, companyId)
+      ? // A draft is private to its author until submitted.
+        and(eq(purchaseRequests.companyId, companyId), or(ne(purchaseRequests.status, "DRAFT"), eq(purchaseRequests.requesterId, ctx.userId)))
       : and(eq(purchaseRequests.companyId, companyId), eq(purchaseRequests.requesterId, ctx.userId))
     : undefined;
 
