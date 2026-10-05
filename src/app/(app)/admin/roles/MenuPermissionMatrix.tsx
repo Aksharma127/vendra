@@ -52,7 +52,7 @@ export function MenuPermissionMatrix({
             key={r.id}
             onClick={() => setSelectedRoleId(r.id)}
             className={`px-3 py-1.5 text-sm rounded transition-colors ${
-              r.id === selectedRoleId ? "bg-accent text-white" : "border border-line text-ink hover:bg-page-bg"
+              r.id === selectedRoleId ? "bg-accent text-on-accent" : "border border-line text-ink hover:bg-page-bg"
             }`}
           >
             {r.name}

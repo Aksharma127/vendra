@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { companies } from "@/db/schema";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { requireAuthContext, canOnMenu } from "@/lib/auth-context";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -18,7 +19,7 @@ export default async function AdminCompaniesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-semibold text-ink">Companies</h1>
+      <PageHeader title="Companies" description="The companies in the group. Every request, order and vendor belongs to exactly one." className="" />
 
       {canCreate && (
         <Panel className="p-5">

@@ -22,6 +22,7 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { inArray, like, sql as dsql } from "drizzle-orm";
 import { db, sql } from "./index";
+import { DIVISION_SKIPPED_NOTE, FIRST_FINANCE_APPROVAL_NOTE } from "../lib/workflow/notes";
 import {
   users,
   userCompanyAccess,
@@ -68,6 +69,7 @@ const U = {
   DEV: uid("41000000", 5),
   ISHAAN: uid("41000000", 6),
   NISHA: uid("41000000", 7),
+  KAVYA: uid("41000000", 8),
 };
 
 const EXTRA_USERS = [
@@ -78,6 +80,13 @@ const EXTRA_USERS = [
   { id: U.DEV, name: "Dev Malhotra", email: "dev@vendra.demo", company: ids.COMPANY_KIGT_ID, division: ids.DIVISION_IMPORT_DESK_ID, manager: true },
   { id: U.ISHAAN, name: "Ishaan Bose", email: "ishaan@vendra.demo", company: ids.COMPANY_KIGT_ID, division: ids.DIVISION_DOMESTIC_SALES_ID, manager: false },
   { id: U.NISHA, name: "Nisha Menon", email: "nisha@vendra.demo", company: ids.COMPANY_KIGT_ID, division: ids.DIVISION_DOMESTIC_SALES_ID, manager: true },
+];
+
+// A second Finance Approver. Requests above the dual-approval threshold
+// (₹5,00,000) need two DIFFERENT finance approvers, so with Meera alone they
+// could never be completed. Access to both companies, like Meera.
+const EXTRA_FINANCE = [
+  { id: U.KAVYA, name: "Kavya Reddy", email: "kavya@vendra.demo", companies: [ids.COMPANY_KIGM_ID, ids.COMPANY_KIGT_ID] },
 ];
 
 // ---------- extra vendors ----------
@@ -100,7 +109,9 @@ const EXTRA_VENDORS = [
 ];
 
 // ---------- what each division buys ----------
-type Item = { category: string; desc: string; qty: [number, number]; unit: [number, number]; vendor: string };
+// `big`: a big-ticket line that can exceed the ₹5,00,000 dual-approval
+// threshold, so the two-person finance rule shows up in the demo history.
+type Item = { category: string; desc: string; qty: [number, number]; unit: [number, number]; vendor: string; big?: true };
 
 const CATALOG: Record<string, Item[]> = {
   [ids.DIVISION_PLANT_OPS_ID]: [
@@ -113,6 +124,7 @@ const CATALOG: Record<string, Item[]> = {
     { category: "Safety", desc: "Welding helmets, auto-darkening", qty: [6, 20], unit: [3200, 4800], vendor: V.BHARAT_SAFETY },
     { category: "Consumables", desc: "Hydraulic oil ISO VG 68 (210 L drum)", qty: [2, 8], unit: [21000, 27000], vendor: V.APEX_LUBES },
     { category: "Consumables", desc: "Cutting coolant concentrate (20 L)", qty: [10, 30], unit: [2600, 3400], vendor: V.APEX_LUBES },
+    { category: "Maintenance", desc: "CNC lathe spindle overhaul, Bay 1", qty: [1, 1], unit: [520000, 780000], vendor: ids.VENDOR_PRECISION_TOOLS_ID, big: true },
   ],
   [ids.DIVISION_QUALITY_ID]: [
     { category: "Equipment", desc: "Digital vernier calipers, 0-200 mm", qty: [5, 15], unit: [4200, 7500], vendor: ids.VENDOR_PRECISION_TOOLS_ID },
@@ -128,6 +140,7 @@ const CATALOG: Record<string, Item[]> = {
     { category: "Trading", desc: "Industrial bearings consignment", qty: [1, 3], unit: [95000, 150000], vendor: ids.VENDOR_ORIENT_IMPORTS_ID },
     { category: "Logistics", desc: "Customs clearance & port handling, JNPT", qty: [1, 3], unit: [45000, 95000], vendor: V.COASTAL_FREIGHT },
     { category: "Logistics", desc: "Inland freight to Pune warehouse", qty: [1, 4], unit: [28000, 52000], vendor: V.COASTAL_FREIGHT },
+    { category: "Trading", desc: "Copper cathode lot (per MT)", qty: [7, 10], unit: [72000, 86000], vendor: ids.VENDOR_ORIENT_IMPORTS_ID, big: true },
   ],
   [ids.DIVISION_DOMESTIC_SALES_ID]: [
     { category: "Packaging", desc: "Corrugated cartons, 5-ply (per 1,000)", qty: [2, 10], unit: [14000, 19000], vendor: V.SUNRISE_PACK },
@@ -135,6 +148,7 @@ const CATALOG: Record<string, Item[]> = {
     { category: "Trading", desc: "Distributor stock replenishment", qty: [1, 3], unit: [90000, 160000], vendor: ids.VENDOR_DELTA_TRADING_ID },
     { category: "Marketing", desc: "Trade fair booth, Mumbai Expo", qty: [1, 1], unit: [180000, 260000], vendor: ids.VENDOR_DELTA_TRADING_ID },
     { category: "IT", desc: "CRM seat licences (annual)", qty: [5, 20], unit: [6500, 9000], vendor: V.NIMBUS_KIGT },
+    { category: "Facilities", desc: "Warehouse racking system, Bay 3", qty: [1, 1], unit: [560000, 820000], vendor: ids.VENDOR_DELTA_TRADING_ID, big: true },
   ],
 };
 
@@ -156,6 +170,7 @@ const JUSTIFICATIONS: Record<string, string[]> = {
   Logistics: ["Inbound consignment arriving this week.", "Recurring freight for warehouse transfers."],
   Packaging: ["Packaging stock for the upcoming dispatch cycle.", "Switching to 5-ply for export cartons."],
   Marketing: ["Booth booking for the annual trade fair; early-bird pricing ends soon."],
+  Facilities: ["Current bays are at capacity with the added SKU range.", "Racking quote valid till month end; installation slot booked."],
 };
 
 const RETURN_COMMENTS = ["Please attach at least two vendor quotes.", "Quantity looks high vs last quarter - please recheck.", "Split this into capex and opex lines, please."];
@@ -204,12 +219,17 @@ function generate(now: number) {
         const item = pick(CATALOG[div.id]);
         const unit = Math.round(between(item.unit[0], item.unit[1]) / 50) * 50;
         let qty = int(item.qty[0], item.qty[1]);
-        // Keep below the dual-finance-approval threshold (5,00,000) so
-        // single-approver flows stay coherent with one Finance Approver.
-        while (qty > 1 && qty * unit > 480000) qty--;
+        // Everyday lines stay under the ₹5,00,000 dual-approval threshold;
+        // only the big-ticket lines go over it and need two finance approvers.
+        if (!item.big) while (qty > 1 && qty * unit > 480000) qty--;
         const amount = qty * unit;
+        const needsTwoFinance = amount > 500000;
         const requester = pick(div.requesters);
+        // Separation of duties, as the app enforces it: a manager's own request
+        // skips their desk and goes straight to finance.
+        const skipsDivision = requester === div.manager;
         const id = uid(PR_PREFIX, ++prSeq);
+        let financeFirst: string | null = null;
 
         // Walk the state machine; stop when the next step would be in the future.
         let status: PRRow["status"] = "PENDING_DIVISION_APPROVAL";
@@ -222,13 +242,20 @@ function generate(now: number) {
         // The app records every submit/withdraw as "Employee", even when a
         // Division Manager raises the request - mirror that exactly.
         const requesterRole = "Employee";
-        hist(requester, requesterRole, "DRAFT", "PENDING_DIVISION_APPROVAL", t);
-        aud(requester, "PR_SUBMITTED", t, { status: "PENDING_DIVISION_APPROVAL", amount: String(amount) });
+        if (skipsDivision) {
+          status = "PENDING_FINANCE_APPROVAL";
+          hist(requester, requesterRole, "DRAFT", status, t, DIVISION_SKIPPED_NOTE);
+          aud(requester, "PR_SUBMITTED", t, { status, amount: String(amount), divisionApprovalSkipped: true });
+        } else {
+          hist(requester, requesterRole, "DRAFT", "PENDING_DIVISION_APPROVAL", t);
+          aud(requester, "PR_SUBMITTED", t, { status: "PENDING_DIVISION_APPROVAL", amount: String(amount) });
+        }
 
         // Occasionally a step stalls for days - that's what keeps queues non-empty.
         const delay = (min: number, max: number) => (chance(0.3) ? between(2, 14) : between(min, max)) * DAY;
 
         const step = (() => {
+          if (!skipsDivision) {
           if (chance(0.04)) {
             const at = t + between(0.2, 2) * DAY;
             if (at > now) return;
@@ -260,21 +287,34 @@ function generate(now: number) {
           aud(div.manager, "PR_DIVISION_APPROVE", dAt, { status: "PENDING_FINANCE_APPROVAL" });
           status = "PENDING_FINANCE_APPROVAL";
           t = dAt;
+          }
 
-          // Finance
+          // Finance: Meera takes most, Kavya the rest. Above the threshold the
+          // first approval only claims the slot; the OTHER approver completes it.
+          const approver = chance(0.65) ? ids.USER_MEERA_ID : U.KAVYA;
           const fAt = t + delay(0.2, 2.5);
           if (fAt > now) return;
           if (chance(0.06)) {
-            hist(ids.USER_MEERA_ID, "Finance Approver", "PENDING_FINANCE_APPROVAL", "REJECTED", fAt, pick(FINANCE_REJECT_COMMENTS));
-            aud(ids.USER_MEERA_ID, "PR_FINANCE_REJECT", fAt, { status: "REJECTED" });
+            hist(approver, "Finance Approver", "PENDING_FINANCE_APPROVAL", "REJECTED", fAt, pick(FINANCE_REJECT_COMMENTS));
+            aud(approver, "PR_FINANCE_REJECT", fAt, { status: "REJECTED" });
             status = "REJECTED";
             t = fAt;
             return;
           }
-          hist(ids.USER_MEERA_ID, "Finance Approver", "PENDING_FINANCE_APPROVAL", "APPROVED_PENDING_PO", fAt);
-          aud(ids.USER_MEERA_ID, "PR_FINANCE_APPROVE", fAt, { status: "APPROVED_PENDING_PO" });
+          let finalApprover = approver;
+          if (needsTwoFinance) {
+            hist(approver, "Finance Approver", "PENDING_FINANCE_APPROVAL", "PENDING_FINANCE_APPROVAL", fAt, FIRST_FINANCE_APPROVAL_NOTE);
+            aud(approver, "PR_FINANCE_FIRST_APPROVAL", fAt, { financeFirstApproverId: approver });
+            financeFirst = approver;
+            t = fAt;
+            finalApprover = approver === ids.USER_MEERA_ID ? U.KAVYA : ids.USER_MEERA_ID;
+          }
+          const f2At = needsTwoFinance ? t + delay(0.2, 2) : fAt;
+          if (f2At > now) return;
+          hist(finalApprover, "Finance Approver", "PENDING_FINANCE_APPROVAL", "APPROVED_PENDING_PO", f2At);
+          aud(finalApprover, "PR_FINANCE_APPROVE", f2At, { status: "APPROVED_PENDING_PO" });
           status = "APPROVED_PENDING_PO";
-          t = fAt;
+          t = f2At;
 
           // Purchase order
           const pAt = t + delay(0.3, 3);
@@ -336,12 +376,53 @@ function generate(now: number) {
           amount: String(amount),
           justification: pick(JUSTIFICATIONS[item.category] ?? ["Operational requirement."]),
           status,
+          financeFirstApproverId: financeFirst,
           createdAt: new Date(submittedAt - between(0.02, 0.2) * DAY),
           updatedAt: new Date(t),
           submittedAt,
         });
       }
     }
+  }
+
+  // Showcase: a big-ticket request sitting at "1 of 2 finance approvals", so
+  // the two-person rule is always there to demo (Meera has approved; Kavya
+  // can complete it). Fixed rather than random, so it exists on every reseed.
+  {
+    const id = uid(PR_PREFIX, ++prSeq);
+    const t0 = atWorkHour(now - 2 * DAY);
+    const tDiv = t0 + 0.3 * DAY;
+    const tFin = t0 + 1.1 * DAY;
+    const amount = 648000;
+    const base = { entityType: "PURCHASE_REQUEST" as const, entityId: id, comment: null };
+    history.push(
+      { ...base, actorId: ids.USER_PRIYA_ID, roleActedAs: "Employee", fromStatus: "DRAFT", toStatus: "PENDING_DIVISION_APPROVAL", createdAt: new Date(t0) },
+      { ...base, actorId: ids.USER_RAHUL_ID, roleActedAs: "Division Manager", fromStatus: "PENDING_DIVISION_APPROVAL", toStatus: "PENDING_FINANCE_APPROVAL", createdAt: new Date(tDiv), comment: "Spindle runout is out of tolerance; overhaul is cheaper than a new head." },
+      { ...base, actorId: ids.USER_MEERA_ID, roleActedAs: "Finance Approver", fromStatus: "PENDING_FINANCE_APPROVAL", toStatus: "PENDING_FINANCE_APPROVAL", createdAt: new Date(tFin), comment: FIRST_FINANCE_APPROVAL_NOTE }
+    );
+    const a = { entityType: "purchase_requests", entityId: id, companyId: ids.COMPANY_KIGM_ID, divisionId: ids.DIVISION_PLANT_OPS_ID };
+    audit.push(
+      { ...a, actorId: ids.USER_PRIYA_ID, action: "PR_SUBMITTED", afterState: JSON.stringify({ status: "PENDING_DIVISION_APPROVAL", amount: String(amount) }), createdAt: new Date(t0) },
+      { ...a, actorId: ids.USER_RAHUL_ID, action: "PR_DIVISION_APPROVE", afterState: JSON.stringify({ status: "PENDING_FINANCE_APPROVAL" }), createdAt: new Date(tDiv) },
+      { ...a, actorId: ids.USER_MEERA_ID, action: "PR_FINANCE_FIRST_APPROVAL", afterState: JSON.stringify({ financeFirstApproverId: ids.USER_MEERA_ID }), createdAt: new Date(tFin) }
+    );
+    prs.push({
+      id,
+      companyId: ids.COMPANY_KIGM_ID,
+      divisionId: ids.DIVISION_PLANT_OPS_ID,
+      requesterId: ids.USER_PRIYA_ID,
+      category: "Maintenance",
+      itemDescription: "CNC lathe spindle overhaul, Bay 1",
+      quantity: "1",
+      estimatedUnitCost: String(amount),
+      amount: String(amount),
+      justification: "Spindle bearings failed the vibration check; Bay 1 is the only lathe that can run the flange job.",
+      status: "PENDING_FINANCE_APPROVAL",
+      financeFirstApproverId: ids.USER_MEERA_ID,
+      createdAt: new Date(t0 - 0.05 * DAY),
+      updatedAt: new Date(tFin),
+      submittedAt: t0,
+    });
   }
 
   // A couple of unsubmitted drafts so "My Requests" shows the full lifecycle.
@@ -421,7 +502,16 @@ async function buildSqlScript(year: number): Promise<string> {
 BEGIN;`);
 
   s.push(`-- 1. Colleagues (password: ${ids.DEMO_PASSWORD}), access, roles, vendors`);
-  s.push(insertSql("users", ["id", "name", "email", "password_hash"], EXTRA_USERS.map((u) => [u.id, u.name, u.email, passwordHash]), "ON CONFLICT DO NOTHING"));
+  s.push(insertSql("users", ["id", "name", "email", "password_hash"], [...EXTRA_USERS, ...EXTRA_FINANCE].map((u) => [u.id, u.name, u.email, passwordHash]), "ON CONFLICT DO NOTHING"));
+  s.push(
+    insertSql(
+      "user_company_access",
+      ["id", "user_id", "company_id"],
+      EXTRA_FINANCE.flatMap((u, i) => u.companies.map((c, j) => [uid("42000000", 100 + i * 10 + j + 1), u.id, c])),
+      "ON CONFLICT DO NOTHING"
+    )
+  );
+  s.push(insertSql("user_roles", ["id", "user_id", "role_id", "company_id", "division_id"], EXTRA_FINANCE.map((u, i) => [uid("44000000", 100 + i + 1), u.id, ids.ROLE_FINANCE_APPROVER_ID, null, null]), "ON CONFLICT DO NOTHING"));
   s.push(insertSql("user_company_access", ["id", "user_id", "company_id"], EXTRA_USERS.map((u, i) => [uid("42000000", i + 1), u.id, u.company]), "ON CONFLICT DO NOTHING"));
   s.push(insertSql("user_division_access", ["id", "user_id", "division_id"], EXTRA_USERS.map((u, i) => [uid("43000000", i + 1), u.id, u.division]), "ON CONFLICT DO NOTHING"));
   s.push(
@@ -444,8 +534,8 @@ DELETE FROM purchase_requests WHERE id::text LIKE ${seeded};`);
   s.push(
     insertSql(
       "purchase_requests",
-      ["id", "company_id", "division_id", "requester_id", "category", "item_description", "quantity", "estimated_unit_cost", "amount", "justification", "status", "created_at", "updated_at"],
-      prs.map((p) => [p.id, p.companyId, p.divisionId, p.requesterId, p.category, p.itemDescription, p.quantity, p.estimatedUnitCost, p.amount, p.justification, p.status, p.createdAt, p.updatedAt])
+      ["id", "company_id", "division_id", "requester_id", "category", "item_description", "quantity", "estimated_unit_cost", "amount", "justification", "status", "finance_first_approver_id", "created_at", "updated_at"],
+      prs.map((p) => [p.id, p.companyId, p.divisionId, p.requesterId, p.category, p.itemDescription, p.quantity, p.estimatedUnitCost, p.amount, p.justification, p.status, p.financeFirstApproverId ?? null, p.createdAt, p.updatedAt])
     )
   );
   s.push(
@@ -583,8 +673,17 @@ async function main() {
       )
       .onConflictDoNothing();
   }
+  const insertedFinance = await db
+    .insert(users)
+    .values(EXTRA_FINANCE.map((u) => ({ id: u.id, name: u.name, email: u.email, passwordHash })))
+    .onConflictDoNothing()
+    .returning({ id: users.id });
+  for (const u of EXTRA_FINANCE.filter((x) => insertedFinance.some((r) => r.id === x.id))) {
+    for (const companyId of u.companies) await db.insert(userCompanyAccess).values({ userId: u.id, companyId }).onConflictDoNothing();
+    await db.insert(userRoles).values({ userId: u.id, roleId: ids.ROLE_FINANCE_APPROVER_ID }).onConflictDoNothing();
+  }
   await db.insert(vendors).values(EXTRA_VENDORS).onConflictDoNothing();
-  console.log(`Colleagues: ${inserted.length} added, vendors ensured.`);
+  console.log(`Colleagues: ${inserted.length + insertedFinance.length} added, vendors ensured.`);
 
   // 2. Transaction history
   const seededPRs = await db.select({ id: purchaseRequests.id }).from(purchaseRequests).where(like(dsql`${purchaseRequests.id}::text`, `${PR_PREFIX}-%`));
@@ -646,7 +745,7 @@ async function main() {
   const byStatus = prs.reduce<Record<string, number>>((acc, p) => ((acc[p.status!] = (acc[p.status!] ?? 0) + 1), acc), {});
   console.log(`Seeded ${prs.length} requests, ${pos.length} purchase orders, ${audit.length} audit events.`);
   console.table(byStatus);
-  console.log("New logins (password " + ids.DEMO_PASSWORD + "): " + EXTRA_USERS.map((u) => u.email).join(", "));
+  console.log("New logins (password " + ids.DEMO_PASSWORD + "): " + [...EXTRA_USERS, ...EXTRA_FINANCE].map((u) => u.email).join(", "));
 }
 
 main()

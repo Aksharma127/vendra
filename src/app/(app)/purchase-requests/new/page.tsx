@@ -5,6 +5,7 @@ import { divisions, purchaseRequests } from "@/db/schema";
 import { requireAuthContext } from "@/lib/auth-context";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { PRTable } from "@/components/PRTable";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { NewPRForm } from "./NewPRForm";
 import { aiConfigured } from "@/lib/ai/draft";
 
@@ -34,16 +35,17 @@ export default async function NewPRPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-ink">New Purchase Request</h1>
-        {/* Not committed to anything by opening this form - a way back to
-            the list, matching every other "Add" screen in the app, which
-            all show the form above the existing list rather than hiding it
-            behind a separate page. */}
-        <Link href="/purchase-requests/mine" className="text-sm text-graphite hover:text-ink transition-colors">
-          Cancel
-        </Link>
-      </div>
+      <PageHeader
+        className=""
+        title="New purchase request"
+        description="Saved as a draft first. Nothing goes to an approver until you submit it."
+        actions={
+          // Opening the form commits to nothing - a way back to the list.
+          <Link href="/purchase-requests/mine" className="text-sm text-graphite transition-colors hover:text-ink">
+            Cancel
+          </Link>
+        }
+      />
       <Panel className="p-6">
         <NewPRForm divisions={availableDivisions.map((d) => ({ id: d.id, name: d.name }))} aiEnabled={aiConfigured()} />
       </Panel>

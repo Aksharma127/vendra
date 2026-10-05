@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users, userRoles, roles, companies, divisions } from "@/db/schema";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { requireAuthContext, canOnMenu } from "@/lib/auth-context";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -42,7 +43,7 @@ export default async function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-semibold text-ink">Users</h1>
+      <PageHeader title="Users" description="Who can sign in, which companies they can see, and their roles." className="" />
 
       {canCreate && (
         <Panel className="p-5">

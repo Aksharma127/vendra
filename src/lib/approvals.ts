@@ -1,5 +1,5 @@
 import "server-only";
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import { purchaseRequests } from "@/db/schema";
 import type { AuthContext } from "@/lib/auth-context";
@@ -7,7 +7,9 @@ import type { AuthContext } from "@/lib/auth-context";
 /**
  * Number of purchase requests currently sitting in a queue this user
  * is authorized to act on (division approval or finance approval).
- * Used for the header notification badge.
+ * Used for the header notification badge. Excludes the user's own requests
+ * (nobody approves their own) and ones where they already gave the first of
+ * two finance approvals (those wait on someone else).
  */
 export async function getPendingApprovalCount(ctx: AuthContext): Promise<number> {
   const canDivision = ctx.capabilities.has("pr:approve-division") && ctx.authorizedDivisionIds.length > 0;
@@ -21,7 +23,8 @@ export async function getPendingApprovalCount(ctx: AuthContext): Promise<number>
           .where(
             and(
               eq(purchaseRequests.status, "PENDING_DIVISION_APPROVAL"),
-              inArray(purchaseRequests.divisionId, ctx.authorizedDivisionIds)
+              inArray(purchaseRequests.divisionId, ctx.authorizedDivisionIds),
+              ne(purchaseRequests.requesterId, ctx.userId)
             )
           )
       : Promise.resolve([{ n: 0 }]),
@@ -32,7 +35,9 @@ export async function getPendingApprovalCount(ctx: AuthContext): Promise<number>
           .where(
             and(
               eq(purchaseRequests.status, "PENDING_FINANCE_APPROVAL"),
-              eq(purchaseRequests.companyId, ctx.activeCompanyId!)
+              eq(purchaseRequests.companyId, ctx.activeCompanyId!),
+              ne(purchaseRequests.requesterId, ctx.userId),
+              or(isNull(purchaseRequests.financeFirstApproverId), ne(purchaseRequests.financeFirstApproverId, ctx.userId))
             )
           )
       : Promise.resolve([{ n: 0 }]),

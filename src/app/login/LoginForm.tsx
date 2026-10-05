@@ -53,7 +53,7 @@ export function LoginForm({ demoAccounts, demoPassword }: { demoAccounts: DemoAc
 
   return (
     <>
-      <div className="bg-surface/85 backdrop-blur-md border border-line rounded-lg p-6 shadow-[0_8px_30px_-12px_rgba(21,24,33,0.25)] panel-interactive">
+      <div className="bg-surface/85 backdrop-blur-md border border-line rounded-lg p-6 shadow-raised panel-interactive">
         <form action={formAction} onSubmit={() => setSigningInAs(null)} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm text-graphite mb-1">
@@ -130,10 +130,12 @@ export function LoginForm({ demoAccounts, demoPassword }: { demoAccounts: DemoAc
           </p>
         </div>
         <ul className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-2">
-          {demoAccounts.map((acct) => {
+          {demoAccounts.map((acct, i) => {
             const busy = pending && signingInAs === acct.email;
+            // An odd one out at the end spans the full width instead of leaving a gap.
+            const lastOdd = i === demoAccounts.length - 1 && demoAccounts.length % 2 === 1;
             return (
-              <li key={acct.email}>
+              <li key={acct.email} className={lastOdd ? "min-[360px]:col-span-2" : ""}>
                 <button
                   type="button"
                   onClick={() => signInAs(acct)}

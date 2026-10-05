@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { divisions, companies } from "@/db/schema";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { requireAuthContext, canOnMenu } from "@/lib/auth-context";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -31,7 +32,7 @@ export default async function AdminDivisionsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-semibold text-ink">Divisions</h1>
+      <PageHeader title="Divisions" description="Divisions within each company. Every request is raised for one." className="" />
 
       {canCreate && (
         <Panel className="p-5">

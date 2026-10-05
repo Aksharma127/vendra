@@ -1,13 +1,13 @@
 // Initials avatar with a stable colour per person (hash of the name), so the
 // same person is always the same colour across the activity feed and tables.
 const TONES = [
-  "bg-accent text-white",
-  "bg-success text-white",
-  "bg-warning text-white",
-  "bg-danger text-white",
-  "bg-graphite text-white",
-  "bg-[#3b5b7a] text-white",
-  "bg-[#6b4f8a] text-white",
+  "bg-accent text-on-accent",
+  "bg-success text-on-accent",
+  "bg-warning text-on-accent",
+  "bg-danger text-on-accent",
+  "bg-graphite text-on-accent",
+  "bg-[color-mix(in_srgb,var(--color-accent)_70%,var(--color-graphite))] text-on-accent",
+  "bg-[color-mix(in_srgb,var(--color-accent)_45%,var(--color-danger))] text-on-accent",
 ];
 
 const SIZES = { sm: "h-7 w-7 text-[11px]", md: "h-8 w-8 text-xs", lg: "h-10 w-10 text-sm" } as const;

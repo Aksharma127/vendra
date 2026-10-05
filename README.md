@@ -186,6 +186,29 @@ decision, not an oversight:
   since the session ID is an unguessable UUID and the cookie is
   `httpOnly`/`secure`/`sameSite=lax`.
 
+## Interface
+
+- **Light and dark themes.** Every colour, shadow and the page's dot grid is a
+  CSS custom property, so dark mode is a second set of values rather than a
+  parallel stylesheet. The toggle in the header cycles *match system → light →
+  dark*; the choice is stored per browser and re-applied by a tiny inline
+  script before first paint, so there is no white flash on load. With no
+  choice stored it follows the operating system. Text contrast was measured in
+  both themes against the actual rendered backgrounds - every sampled pair
+  passes WCAG AA.
+- **`--color-on-accent`** is the text colour that sits on a solid accent,
+  success, warning or danger fill. Dark mode lifts those fills to stay legible
+  on a dark page, which would break white button text, so it flips to
+  near-black. No component hardcodes `text-white` on a themed fill.
+- **Tables become cards on phones.** A seven-column ledger in a horizontal
+  scroller is unusable at 412px: the item wraps to four lines and the amount
+  and status - the things you are actually scanning for - sit off-screen.
+  Below `sm`, requests and orders render as stacked cards instead. Only one of
+  the two is in the accessibility tree at a time.
+- **The approval route is drawn on every request**, so where a request has got
+  to, who signed for it and who it is waiting on is visible without reading
+  the history.
+
 ## Sign-in and passwords
 
 - **Show/hide password** (`src/components/ui/PasswordInput.tsx`), used on the

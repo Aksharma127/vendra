@@ -139,44 +139,64 @@ export function TableSkeleton({ filters = true, action = false, rows = 8 }: { fi
 }
 
 export function DetailSkeleton() {
+  // Mirrors the request/order page: header + route/details on the left, rail on the right.
   return (
-    <div aria-busy="true" aria-label="Loading">
-      <S className="h-3.5 w-28 mb-4" />
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
-        <div className="space-y-2">
-          <S className="h-6 w-64 max-w-[80vw]" />
-          <S className="h-3.5 w-44" />
-        </div>
-        <S className="h-6 w-36 rounded-full" />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2 p-5">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-5">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="space-y-2">
-                <S className="h-3 w-20" />
-                <S className="h-4 w-3/4" />
-              </div>
-            ))}
-          </div>
-          <div className="mt-6 space-y-2">
-            <S className="h-3 w-24" />
-            <S className="h-3.5 w-full" />
-            <S className="h-3.5 w-5/6" />
-          </div>
-        </Card>
-        <Card className="p-5 space-y-5">
-          <S className="h-4 w-28" />
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex gap-3">
-              <S className="h-7 w-7 rounded-full shrink-0" />
-              <div className="flex-1 space-y-2">
-                <S className="h-3.5 w-4/5" />
-                <S className="h-3 w-1/3" />
-              </div>
+    <div aria-busy="true" aria-label="Loading" className="mx-auto max-w-6xl">
+      <S className="mb-5 h-3.5 w-28" />
+      <div className="grid items-start gap-x-6 gap-y-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-0">
+          <Card className="p-6 lg:rounded-b-none">
+            <div className="flex items-center gap-2.5">
+              <S className="h-4 w-36" />
+              <S className="h-5 w-32 rounded-full" />
             </div>
-          ))}
-        </Card>
+            <S className="mt-3 h-6 w-3/4" />
+            <div className="mt-5 flex items-end justify-between gap-4">
+              <div className="flex items-center gap-2.5">
+                <S className="h-8 w-8 rounded-full" />
+                <S className="h-3.5 w-56 max-w-[50vw]" />
+              </div>
+              <S className="h-7 w-28" />
+            </div>
+          </Card>
+          <Card className="mt-4 p-6 lg:mt-0 lg:rounded-t-none lg:border-t-0">
+            <S className="mb-5 h-4 w-28" />
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 md:block">
+                  <S className="h-5 w-5 rounded-full" />
+                  <div className="space-y-1.5 md:mt-2">
+                    <S className="h-3.5 w-16" />
+                    <S className="h-3 w-12" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <S className="mb-4 mt-8 h-4 w-20" />
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <S className="h-3 w-20" />
+                  <S className="h-4 w-3/4" />
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+        <div className="space-y-4">
+          <Card className="space-y-3 p-4">
+            <S className="h-4 w-40" />
+            <div className="flex items-center gap-2">
+              <S className="h-7 w-7 rounded-full" />
+              <S className="h-3.5 w-28" />
+            </div>
+          </Card>
+          <Card className="space-y-3 p-4">
+            <S className="h-4 w-28" />
+            <S className="h-20 w-full" />
+            <S className="h-9 w-full" />
+          </Card>
+        </div>
       </div>
     </div>
   );

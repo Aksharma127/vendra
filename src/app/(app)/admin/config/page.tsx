@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { config, companies } from "@/db/schema";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { requireAuthContext, canOnMenu } from "@/lib/auth-context";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -22,7 +23,7 @@ export default async function AdminConfigPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-semibold text-ink">Configuration</h1>
+      <PageHeader title="Configuration" description="Approval thresholds and other settings, for all companies or one." className="" />
 
       {canCreate && (
         <Panel className="p-5">

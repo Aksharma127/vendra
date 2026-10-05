@@ -11,6 +11,7 @@ import type { AuthContext } from "@/lib/auth-context";
 import { getAuthorizedDivisionIds } from "@/lib/auth-context";
 import { allocateNumber } from "./numbering";
 import { recordAudit, recordWorkflowHistory } from "./audit";
+import { DIVISION_SKIPPED_NOTE, FIRST_FINANCE_APPROVAL_NOTE } from "./notes";
 
 export class WorkflowError extends Error {
   constructor(
@@ -27,6 +28,15 @@ async function getConfigNumber(key: string, companyId: string | null, fallback: 
   const global = rows.find((r) => r.companyId === null);
   const raw = override?.value ?? global?.value;
   return raw ? Number(raw) : fallback;
+}
+
+/** The two approval thresholds for a company (company override, else global). */
+export async function getApprovalThresholds(companyId: string) {
+  const [justification, financeSecondary] = await Promise.all([
+    getConfigNumber("justificationThreshold", companyId, 50000),
+    getConfigNumber("financeSecondaryThreshold", companyId, 500000),
+  ]);
+  return { justification, financeSecondary };
 }
 
 interface CreateInput {
@@ -89,11 +99,16 @@ export async function createDraft(ctx: AuthContext, input: CreateInput) {
   return pr;
 }
 
+/** Edit a request that is still with its requester: a DRAFT, or one RETURNED
+ * FOR REVISION (the whole point of returning it is to change it). Same rules
+ * as creating one; companyId is re-derived from the division, never trusted. */
 export async function editDraft(ctx: AuthContext, prId: string, input: Partial<CreateInput>) {
   const [pr] = await db.select().from(purchaseRequests).where(eq(purchaseRequests.id, prId)).limit(1);
   if (!pr) throw new WorkflowError("Not found", "NOT_FOUND");
   if (pr.requesterId !== ctx.userId) throw new WorkflowError("Not your request", "FORBIDDEN");
-  if (pr.status !== "DRAFT") throw new WorkflowError("Only drafts can be edited", "CONFLICT");
+  if (pr.status !== "DRAFT" && pr.status !== "RETURNED_FOR_REVISION") {
+    throw new WorkflowError("Only drafts and returned requests can be edited", "CONFLICT");
+  }
 
   let divisionId = pr.divisionId;
   let companyId = pr.companyId;
@@ -101,15 +116,35 @@ export async function editDraft(ctx: AuthContext, prId: string, input: Partial<C
     if (!ctx.authorizedDivisionIds.includes(input.divisionId)) {
       throw new WorkflowError("You are not authorized to raise requests for this division", "FORBIDDEN");
     }
-    const [division] = await db.select().from(divisions).where(eq(divisions.id, input.divisionId)).limit(1);
+    const [division] = await db
+      .select()
+      .from(divisions)
+      .innerJoin(companies, eq(divisions.companyId, companies.id))
+      .where(eq(divisions.id, input.divisionId))
+      .limit(1);
     if (!division) throw new WorkflowError("Division not found", "NOT_FOUND");
-    divisionId = division.id;
-    companyId = division.companyId;
+    if (!division.divisions.isActive || !division.companies.isActive) {
+      throw new WorkflowError("This division or company is currently inactive", "VALIDATION");
+    }
+    // A returned request keeps its number, and numbers are per company.
+    if (pr.prNumber && division.divisions.companyId !== pr.companyId) {
+      throw new WorkflowError("A submitted request can't move to another company", "VALIDATION");
+    }
+    divisionId = division.divisions.id;
+    companyId = division.divisions.companyId;
   }
 
   const quantity = input.quantity ?? Number(pr.quantity);
   const estimatedUnitCost = input.estimatedUnitCost ?? Number(pr.estimatedUnitCost);
+  if (!(quantity > 0) || !(estimatedUnitCost > 0)) {
+    throw new WorkflowError("Quantity and cost must be greater than zero", "VALIDATION");
+  }
   const amount = quantity * estimatedUnitCost;
+  const justification = input.justification ?? pr.justification;
+  const threshold = await getConfigNumber("justificationThreshold", companyId, 50000);
+  if (amount > threshold && !justification?.trim()) {
+    throw new WorkflowError("Justification is required for requests above the threshold", "VALIDATION");
+  }
 
   const [updated] = await db
     .update(purchaseRequests)
@@ -121,13 +156,14 @@ export async function editDraft(ctx: AuthContext, prId: string, input: Partial<C
       quantity: String(quantity),
       estimatedUnitCost: String(estimatedUnitCost),
       amount: String(amount),
-      justification: input.justification ?? pr.justification,
+      justification: justification?.trim() ? justification.trim() : null,
       updatedAt: new Date(),
     })
-    .where(and(eq(purchaseRequests.id, prId), eq(purchaseRequests.status, "DRAFT")))
+    // CAS: only if it's still in the state we validated against.
+    .where(and(eq(purchaseRequests.id, prId), eq(purchaseRequests.status, pr.status)))
     .returning();
 
-  if (!updated) throw new WorkflowError("This request is no longer a draft", "CONFLICT");
+  if (!updated) throw new WorkflowError("This request changed while you were editing. Reload and try again", "CONFLICT");
   return updated;
 }
 
@@ -137,7 +173,12 @@ async function loadCompanyCode(companyId: string) {
 }
 
 /** DRAFT or RETURNED_FOR_REVISION -> PENDING_DIVISION_APPROVAL. Allocates the
- * PR number on first submission only (prNumber stays null while DRAFT). */
+ * PR number on first submission only (prNumber stays null while DRAFT).
+ *
+ * Separation of duties: nobody approves their own request. When the
+ * requester is themselves the division's approver, there is no one
+ * independent at that desk, so the request goes straight to finance - the
+ * next independent approver - and the timeline says why. */
 export async function submitPR(ctx: AuthContext, prId: string) {
   const [pr] = await db.select().from(purchaseRequests).where(eq(purchaseRequests.id, prId)).limit(1);
   if (!pr) throw new WorkflowError("Not found", "NOT_FOUND");
@@ -156,6 +197,9 @@ export async function submitPR(ctx: AuthContext, prId: string) {
     throw new WorkflowError("This division or company is currently inactive", "VALIDATION");
   }
 
+  const skipsDivision = ctx.capabilities.has("pr:approve-division") && ctx.authorizedDivisionIds.includes(pr.divisionId);
+  const target = skipsDivision ? "PENDING_FINANCE_APPROVAL" : "PENDING_DIVISION_APPROVAL";
+
   return db.transaction(async (tx) => {
     let prNumber = pr.prNumber;
     if (!prNumber) {
@@ -165,7 +209,7 @@ export async function submitPR(ctx: AuthContext, prId: string) {
 
     const [updated] = await tx
       .update(purchaseRequests)
-      .set({ status: "PENDING_DIVISION_APPROVAL", prNumber, updatedAt: new Date() })
+      .set({ status: target, prNumber, updatedAt: new Date() })
       .where(
         and(
           eq(purchaseRequests.id, prId),
@@ -183,7 +227,8 @@ export async function submitPR(ctx: AuthContext, prId: string) {
       actorId: ctx.userId,
       roleActedAs: "Employee",
       fromStatus: pr.status,
-      toStatus: "PENDING_DIVISION_APPROVAL",
+      toStatus: target,
+      comment: skipsDivision ? DIVISION_SKIPPED_NOTE : undefined,
     });
     await recordAudit(tx, {
       actorId: ctx.userId,
@@ -192,7 +237,9 @@ export async function submitPR(ctx: AuthContext, prId: string) {
       entityId: prId,
       companyId: pr.companyId,
       divisionId: pr.divisionId,
-      afterState: { status: "PENDING_DIVISION_APPROVAL", amount: pr.amount },
+      afterState: skipsDivision
+        ? { status: target, amount: pr.amount, divisionApprovalSkipped: true }
+        : { status: target, amount: pr.amount },
     });
 
     return updated;
@@ -251,6 +298,11 @@ export async function actOnDivisionApproval(
   const [pr] = await db.select().from(purchaseRequests).where(eq(purchaseRequests.id, prId)).limit(1);
   if (!pr) throw new WorkflowError("Not found", "NOT_FOUND");
   if (!ctx.authorizedDivisionIds.includes(pr.divisionId)) throw new WorkflowError("Not found", "NOT_FOUND");
+  // Separation of duties. Normally unreachable (a manager's own request skips
+  // their desk on submit), so this is the backstop for older data.
+  if (pr.requesterId === ctx.userId) {
+    throw new WorkflowError("You raised this request, so someone else has to approve it", "FORBIDDEN");
+  }
   if (pr.status !== "PENDING_DIVISION_APPROVAL") {
     throw new WorkflowError("This request is not awaiting division approval", "CONFLICT");
   }
@@ -311,6 +363,9 @@ export async function actOnFinanceApproval(
   const [pr] = await db.select().from(purchaseRequests).where(eq(purchaseRequests.id, prId)).limit(1);
   if (!pr) throw new WorkflowError("Not found", "NOT_FOUND");
   if (!ctx.authorizedCompanyIds.includes(pr.companyId)) throw new WorkflowError("Not found", "NOT_FOUND");
+  if (pr.requesterId === ctx.userId) {
+    throw new WorkflowError("You raised this request, so someone else has to approve it", "FORBIDDEN");
+  }
   if (pr.status !== "PENDING_FINANCE_APPROVAL") {
     throw new WorkflowError("This request is not awaiting finance approval", "CONFLICT");
   }
@@ -423,7 +478,7 @@ async function claimFirstApprover(ctx: AuthContext, pr: typeof purchaseRequests.
         roleActedAs: "Finance Approver",
         fromStatus: "PENDING_FINANCE_APPROVAL",
         toStatus: "PENDING_FINANCE_APPROVAL",
-        comment: comment ?? "First finance approval recorded; awaiting a second, different approver",
+        comment: comment?.trim() || FIRST_FINANCE_APPROVAL_NOTE,
       });
       await recordAudit(tx, {
         actorId: ctx.userId,

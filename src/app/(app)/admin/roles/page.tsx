@@ -1,5 +1,6 @@
 import { db } from "@/db";
 import { roles, menuItems, roleMenuPermissions } from "@/db/schema";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { requireAuthContext, canOnMenu } from "@/lib/auth-context";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -31,7 +32,7 @@ export default async function AdminRolesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-semibold text-ink">Roles</h1>
+      <PageHeader title="Roles" description="What each role can see and do, menu by menu." className="" />
 
       {canCreate && (
         <Panel className="p-5">

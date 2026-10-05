@@ -7,6 +7,14 @@ import { Header } from "@/components/Header";
 import { ShellSkeleton } from "@/components/ShellSkeleton";
 import { MobileNavProvider } from "@/components/MobileNavContext";
 import { NavProgress } from "@/components/NavProgress";
+import { ToastProvider } from "@/components/Toaster";
+import { CommandPalette } from "@/components/CommandPalette";
+import type { MenuNode } from "@/lib/auth-context";
+
+// Every page in the user's own menu, for the search palette's "Go to" list.
+function flatten(tree: MenuNode[]): { label: string; path: string }[] {
+  return tree.flatMap((n) => (n.path ? [{ label: n.label, path: n.path }] : flatten(n.children)));
+}
 
 // The session/RBAC lookup here is runtime data (reads the session cookie),
 // so Next.js cannot show an instant loading state for it automatically -
@@ -30,24 +38,27 @@ async function Shell({ children }: { children: React.ReactNode }) {
   return (
     <MobileNavProvider>
       <div className="flex h-full min-h-screen">
-        <Sidebar tree={ctx.menuTree} buildId={buildId} />
+        <Sidebar tree={ctx.menuTree} buildId={buildId} badges={{ "/purchase-requests/queue": pendingApprovalCount }} />
         <div className="flex-1 flex flex-col min-w-0">
           <Header ctx={ctx} pendingApprovalCount={pendingApprovalCount} />
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 animate-fade-in">{children}</main>
+          <main className="flex-1 overflow-x-hidden p-4 sm:p-6 animate-fade-in">{children}</main>
         </div>
       </div>
+      {ctx.hasBusinessRole && <CommandPalette pages={flatten(ctx.menuTree)} canCreate={ctx.capabilities.has("pr:create")} />}
     </MobileNavProvider>
   );
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    // Toasts live above the Suspense boundary so a confirmation survives the
+    // router.refresh() that follows every workflow action.
+    <ToastProvider>
       {/* Outside the Suspense boundary so it is live from first paint. */}
       <NavProgress />
       <Suspense fallback={<ShellSkeleton />}>
         <Shell>{children}</Shell>
       </Suspense>
-    </>
+    </ToastProvider>
   );
 }

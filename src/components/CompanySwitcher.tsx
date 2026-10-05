@@ -20,7 +20,8 @@ export function CompanySwitcher({
 
   return (
     <select
-      className="text-sm border border-line rounded px-2 py-1.5 bg-surface disabled:opacity-50 max-w-[9rem] sm:max-w-none"
+      aria-label="Company"
+      className="text-sm border border-line rounded-md px-2 py-1.5 bg-surface disabled:opacity-50 max-w-[9rem] sm:max-w-none"
       value={activeCompanyId ?? ""}
       disabled={pending}
       onChange={(e) => {

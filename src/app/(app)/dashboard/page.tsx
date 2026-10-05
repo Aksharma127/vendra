@@ -17,7 +17,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PRTable, type PRRow } from "@/components/PRTable";
 import { UserAvatar } from "@/components/UserAvatar";
 import { AreaChart, BarList, DonutChart, Sparkline } from "@/components/Charts";
-import { formatMoney, formatDateTime } from "@/lib/format";
+import { zonedParts, TIME_ZONE, formatMoney, formatDateTime } from "@/lib/format";
 
 const STAT_ACCENTS = ["bg-accent/10 text-accent", "bg-warning/10 text-warning", "bg-success/10 text-success", "bg-danger/10 text-danger"];
 
@@ -176,19 +176,26 @@ function ActivityFeed({
   );
 }
 
-// Last N calendar months, oldest first, as { key: "2026-09", label: "Sep" }.
+// Last N calendar months in Indian time, oldest first, as { key: "2026-09", label: "Sept" }.
 function lastMonths(n: number) {
-  const now = new Date();
+  const { y, m } = zonedParts(new Date());
   return Array.from({ length: n }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (n - 1 - i), 1);
+    const total = y * 12 + (m - 1) - (n - 1 - i);
+    const yy = Math.floor(total / 12);
+    const mm = (total % 12) + 1;
+    // Mid-month noon UTC, so the label can't slip into a neighbouring month.
+    const label = new Intl.DateTimeFormat("en-IN", { month: "short", timeZone: TIME_ZONE }).format(new Date(Date.UTC(yy, mm - 1, 15, 12)));
     return {
-      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      key: `${yy}-${String(mm).padStart(2, "0")}`,
       // The current month is partial - say so, or its dip reads like a crash.
-      label: d.toLocaleDateString("en-IN", { month: "short" }) + (i === n - 1 ? ", so far" : ""),
+      label: label + (i === n - 1 ? ", so far" : ""),
     };
   });
 }
-const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+const monthKey = (d: Date) => {
+  const { y, m } = zonedParts(d);
+  return `${y}-${String(m).padStart(2, "0")}`;
+};
 
 const IN_REVIEW = ["PENDING_DIVISION_APPROVAL", "PENDING_FINANCE_APPROVAL"];
 const OPEN_STATUSES = ["PENDING_DIVISION_APPROVAL", "PENDING_FINANCE_APPROVAL", "APPROVED_PENDING_PO", "RETURNED_FOR_REVISION"];
@@ -387,14 +394,10 @@ export default async function DashboardPage() {
   const lastMonthOrdered = orderedSeries[orderedSeries.length - 2];
   // Month-to-date vs a full previous month would always look like a drop -
   // compare against the same number of days into last month instead.
-  const dayOfMonth = new Date().getDate();
+  const today = zonedParts(new Date());
+  const lastMonthKey = months[months.length - 2].key;
   const lastMonthSamePeriod = scopedPOs
-    .filter((po) => {
-      const d = po.createdAt;
-      const now = new Date();
-      const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth() && d.getDate() <= dayOfMonth;
-    })
+    .filter((po) => monthKey(po.createdAt) === lastMonthKey && zonedParts(po.createdAt).day <= today.day)
     .reduce((s, po) => s + Number(po.amount), 0);
   const orderedDelta = lastMonthSamePeriod > 0 ? ((thisMonthOrdered - lastMonthSamePeriod) / lastMonthSamePeriod) * 100 : null;
 
@@ -443,6 +446,8 @@ export default async function DashboardPage() {
   const hour = Number(new Intl.DateTimeFormat("en-IN", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
+  const listFor = (status: string) => (canViewAll ? `/purchase-requests/all?status=${status}` : `/purchase-requests/mine?status=${status}`);
+
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
@@ -456,16 +461,17 @@ export default async function DashboardPage() {
         </div>
         {ctx.capabilities.has("pr:create") && (
           <Link href="/purchase-requests/new">
-            <Button>+ New request</Button>
+            <Button>New request</Button>
           </Link>
         )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4 stagger-children">
-        <Stat label="Pending division approval" value={pendingDivision} accent={1} icon="inbox" href={ctx.capabilities.has("pr:approve-division") ? "/purchase-requests/queue" : undefined} />
-        <Stat label="Pending finance approval" value={pendingFinance} accent={0} icon="shield" href={ctx.capabilities.has("pr:approve-finance") ? "/purchase-requests/queue" : undefined} />
-        <Stat label="Approved, awaiting PO" value={approvedPendingPO} accent={2} icon="cart" href={ctx.capabilities.has("po:issue") ? "/purchase-requests/all" : undefined} />
-        <Stat label="Open purchase orders" value={openPOCount} accent={3} icon="truck" href={ctx.capabilities.has("po:issue") ? "/purchase-orders" : undefined} />
+        {/* Every count opens the list behind it, filtered, for whoever is looking. */}
+        <Stat label="Pending division approval" value={pendingDivision} accent={1} icon="inbox" href={ctx.capabilities.has("pr:approve-division") ? "/purchase-requests/queue" : listFor("review")} />
+        <Stat label="Pending finance approval" value={pendingFinance} accent={0} icon="shield" href={ctx.capabilities.has("pr:approve-finance") ? "/purchase-requests/queue" : listFor("review")} />
+        <Stat label="Approved, awaiting PO" value={approvedPendingPO} accent={2} icon="cart" href={canViewAll ? "/purchase-requests/all?status=awaiting-po" : "/purchase-requests/mine?status=approved"} />
+        <Stat label="Open purchase orders" value={openPOCount} accent={3} icon="truck" href="/purchase-orders?status=issued" />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">

@@ -1,44 +1,37 @@
 "use client";
 
-import { useTransition, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { updatePOStatusAction } from "@/lib/actions/purchase-orders";
+import { useWorkflowAction } from "@/lib/use-workflow-action";
 
 export function PODetailActions({ poId, status }: { poId: string; status: string }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  function advance(target: "DELIVERED" | "CLOSED") {
-    setError(null);
-    startTransition(async () => {
-      try {
-        await updatePOStatusAction(poId, target);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Something went wrong.");
-      }
-    });
-  }
+  const { run, pending, error } = useWorkflowAction();
 
   if (status === "CLOSED") return null;
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-2">
-        {status === "ISSUED" && (
-          <Button disabled={pending} onClick={() => advance("DELIVERED")}>
-            Mark Delivered
+    <div className="space-y-2">
+      {status === "ISSUED" && (
+        <>
+          <Button className="w-full" disabled={pending} onClick={() => run(() => updatePOStatusAction(poId, "DELIVERED"))}>
+            Mark delivered
           </Button>
-        )}
-        {status === "DELIVERED" && (
-          <Button disabled={pending} onClick={() => advance("CLOSED")}>
-            Close Order
+          <p className="text-xs text-graphite">Once the goods or service have been received in full.</p>
+        </>
+      )}
+      {status === "DELIVERED" && (
+        <>
+          <Button className="w-full" disabled={pending} onClick={() => run(() => updatePOStatusAction(poId, "CLOSED"))}>
+            Close order
           </Button>
-        )}
-      </div>
-      {error && <p className="text-sm text-danger">{error}</p>}
+          <p className="text-xs text-graphite">After the invoice is settled. A closed order can&apos;t be changed.</p>
+        </>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

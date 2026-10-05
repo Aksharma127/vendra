@@ -5,6 +5,17 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 
 /* ---------- Corporate Minimalism design tokens ---------- */
+/*
+ * Light is the default. Dark is applied either by the OS preference or by an
+ * explicit choice stored in localStorage and written to <html data-theme> by
+ * the inline script in app/layout.tsx (before first paint, so no flash).
+ *
+ * `--color-on-accent` is what sits ON a solid accent/success/warning/danger
+ * fill. Light mode: white. Dark mode: near-black, because the dark palette
+ * lifts those fills to stay legible against a dark page, and white on a light
+ * blue button fails contrast. Anywhere a solid token colour is a background,
+ * the text uses this, never a literal white.
+ */
 :root {
   --color-surface: #ffffff;
   --color-page-bg: #f5f6f8;
@@ -13,9 +24,72 @@
   --color-line: #dfe2e8;
   --color-accent: #1e3a5f;
   --color-accent-hover: #16304d;
+  --color-on-accent: #ffffff;
   --color-success: #1e6b45;
   --color-warning: #8a5a00;
   --color-danger: #a32c22;
+
+  /* Depth and the page's dot grid, so dark mode can soften both. */
+  --shadow-card: 0 1px 2px rgba(21, 24, 33, 0.04), 0 1px 8px -2px rgba(21, 24, 33, 0.06);
+  --shadow-raised: 0 8px 30px -12px rgba(21, 24, 33, 0.25);
+  --shadow-overlay: 0 24px 60px -20px rgba(21, 24, 33, 0.35);
+  --shadow-hover: 0 2px 10px -2px rgba(21, 24, 33, 0.08);
+  --dot-grid: rgba(21, 24, 33, 0.08);
+  --wash-strength: 13%;
+  --wash-strength-soft: 8%;
+  /* The sign-in brand panel stays deep navy in both themes. */
+  --color-brand-panel: #1e3a5f;
+  color-scheme: light;
+}
+
+/* The dark palette. Accent lifts to a mid blue that reads as a link on a dark
+   page AND carries near-black button text; greens/ambers/reds lift to match. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  --color-surface: #181b23;
+  --color-page-bg: #101219;
+  --color-ink: #e9ebf0;
+  --color-graphite: #9aa2b1;
+  --color-line: #2b3040;
+  --color-accent: #6ba5e2;
+  --color-accent-hover: #86b8ec;
+  --color-on-accent: #0c1017;
+  --color-success: #4cc08a;
+  --color-warning: #d9a441;
+  --color-danger: #ef8279;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 10px -2px rgba(0, 0, 0, 0.45);
+  --shadow-raised: 0 10px 34px -14px rgba(0, 0, 0, 0.7);
+  --shadow-overlay: 0 28px 70px -24px rgba(0, 0, 0, 0.8);
+  --shadow-hover: 0 2px 14px -2px rgba(0, 0, 0, 0.6);
+  --dot-grid: rgba(233, 235, 240, 0.07);
+  --wash-strength: 16%;
+  --wash-strength-soft: 10%;
+  color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-surface: #181b23;
+  --color-page-bg: #101219;
+  --color-ink: #e9ebf0;
+  --color-graphite: #9aa2b1;
+  --color-line: #2b3040;
+  --color-accent: #6ba5e2;
+  --color-accent-hover: #86b8ec;
+  --color-on-accent: #0c1017;
+  --color-success: #4cc08a;
+  --color-warning: #d9a441;
+  --color-danger: #ef8279;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 1px 10px -2px rgba(0, 0, 0, 0.45);
+  --shadow-raised: 0 10px 34px -14px rgba(0, 0, 0, 0.7);
+  --shadow-overlay: 0 28px 70px -24px rgba(0, 0, 0, 0.8);
+  --shadow-hover: 0 2px 14px -2px rgba(0, 0, 0, 0.6);
+  --dot-grid: rgba(233, 235, 240, 0.07);
+  --wash-strength: 16%;
+  --wash-strength-soft: 10%;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -26,18 +100,22 @@
   --color-line: var(--color-line);
   --color-accent: var(--color-accent);
   --color-accent-hover: var(--color-accent-hover);
+  --color-on-accent: var(--color-on-accent);
   --color-success: var(--color-success);
   --color-warning: var(--color-warning);
   --color-danger: var(--color-danger);
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-overlay: var(--shadow-overlay);
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 body {
   background:
-    radial-gradient(ellipse 900px 560px at 100% 0%, color-mix(in srgb, var(--color-accent) 13%, transparent), transparent 62%),
-    radial-gradient(ellipse 760px 520px at 0% 100%, color-mix(in srgb, var(--color-accent) 8%, transparent), transparent 58%),
-    radial-gradient(circle at 1px 1px, rgba(21, 24, 33, 0.08) 1px, transparent 0) 0 0 / 24px 24px,
+    radial-gradient(ellipse 900px 560px at 100% 0%, color-mix(in srgb, var(--color-accent) var(--wash-strength), transparent), transparent 62%),
+    radial-gradient(ellipse 760px 520px at 0% 100%, color-mix(in srgb, var(--color-accent) var(--wash-strength-soft), transparent), transparent 58%),
+    radial-gradient(circle at 1px 1px, var(--dot-grid) 1px, transparent 0) 0 0 / 24px 24px,
     var(--color-page-bg);
   background-attachment: fixed, fixed, fixed, fixed;
   color: var(--color-ink);
@@ -188,6 +266,36 @@ body {
   .drift-b { animation: drift-b 26s ease-in-out infinite; }
   .drift-c { animation: drift-c 30s ease-in-out infinite; }
 
+  /* The desk currently holding a request: a slow halo, the one ambient
+     motion on the page, because it answers "where is it now?". */
+  @keyframes route-current {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 35%, transparent);
+    }
+    50% {
+      box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-accent) 0%, transparent);
+    }
+  }
+  .route-current {
+    animation: route-current 2.4s ease-out infinite;
+  }
+
+  /* Toast: rises a few pixels into place. transform-only. */
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .toast-in {
+    animation: toast-in 0.18s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
   .stagger-children > * {
     animation: fade-in-up 0.15s ease-out both;
   }
@@ -218,7 +326,9 @@ body {
   .chart-draw,
   .chart-fade,
   .chart-grow-x,
-  .nav-progress {
+  .nav-progress,
+  .route-current,
+  .toast-in {
     animation: none !important;
   }
   .chart-draw {
@@ -235,7 +345,7 @@ body {
   transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 .panel-interactive:hover {
-  box-shadow: 0 2px 10px -2px rgba(21, 24, 33, 0.08);
+  box-shadow: var(--shadow-hover);
   border-color: color-mix(in srgb, var(--color-line) 55%, var(--color-graphite));
 }
 

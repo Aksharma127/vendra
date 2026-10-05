@@ -1,8 +1,11 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createDraftAction } from "@/lib/actions/purchase-requests-create";
+import { editDraftAction } from "@/lib/actions/purchase-requests";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/Toaster";
 
 const inputClass =
   "w-full text-sm border border-line rounded px-3 py-2 bg-surface text-ink placeholder:text-graphite focus:outline-none focus:ring-1 focus:ring-accent transition-colors duration-500";
@@ -136,16 +139,63 @@ function AIAssist({ onFill }: { onFill: (s: Suggestion) => void }) {
   );
 }
 
-export function NewPRForm({ divisions, aiEnabled = false }: { divisions: { id: string; name: string }[]; aiEnabled?: boolean }) {
-  const [state, formAction, pending] = useActionState(createDraftAction, undefined);
-  const [fields, setFields] = useState<Fields>({
-    divisionId: divisions[0]?.id ?? "",
-    category: "",
-    itemDescription: "",
-    quantity: "",
-    estimatedUnitCost: "",
-    justification: "",
-  });
+type EditTarget = { prId: string; returned: boolean; initial: Fields };
+
+export function NewPRForm({
+  divisions,
+  aiEnabled = false,
+  edit,
+}: {
+  divisions: { id: string; name: string }[];
+  aiEnabled?: boolean;
+  /** Editing an existing draft or returned request instead of creating one. */
+  edit?: EditTarget;
+}) {
+  // Create: a form action; the server redirects to the new draft.
+  const [createState, createAction, creating] = useActionState(createDraftAction, undefined);
+  // Edit: submitted by hand. Saving revalidates THIS page, which (after a
+  // resubmit) is no longer editable and re-renders without the form - so the
+  // confirmation and the move to the request happen right after the await,
+  // not in an effect that would be unmounted with the form.
+  const router = useRouter();
+  const { toast } = useToast();
+  const [editError, setEditError] = useState<string | null>(null);
+  const [saving, startSaving] = useTransition();
+  const intent = useRef<"save" | "submit">("save");
+  function submitEdit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!edit) return;
+    const fd = new FormData(e.currentTarget);
+    fd.set("intent", intent.current);
+    setEditError(null);
+    startSaving(async () => {
+      let res: Awaited<ReturnType<typeof editDraftAction>>;
+      try {
+        res = await editDraftAction(edit.prId, undefined, fd);
+      } catch {
+        res = { error: "Couldn't reach the server. Check your connection and try again." };
+      }
+      if (!res.success) {
+        setEditError(res.error ?? "Something went wrong. Please try again.");
+        return;
+      }
+      toast(res.message ?? "Saved.");
+      router.push(`/purchase-requests/${edit.prId}`);
+    });
+  }
+  const pending = edit ? saving : creating;
+  const errorText = edit ? editError : createState?.error;
+
+  const [fields, setFields] = useState<Fields>(
+    edit?.initial ?? {
+      divisionId: divisions[0]?.id ?? "",
+      category: "",
+      itemDescription: "",
+      quantity: "",
+      estimatedUnitCost: "",
+      justification: "",
+    }
+  );
   const [filled, setFilled] = useState<Set<keyof Fields>>(new Set());
   const [ai, setAi] = useState<{ confidence: Suggestion["confidence"]; notes: string[] } | null>(null);
 
@@ -190,11 +240,11 @@ export function NewPRForm({ divisions, aiEnabled = false }: { divisions: { id: s
 
   return (
     <>
-      {aiEnabled && <AIAssist onFill={applySuggestion} />}
-      <form action={formAction} className="space-y-4">
+      {aiEnabled && !edit && <AIAssist onFill={applySuggestion} />}
+      <form {...(edit ? { onSubmit: submitEdit } : { action: createAction })} className="space-y-4">
         <div>
-          <label className={labelClass}>Division</label>
-          <select name="divisionId" required className={cls("divisionId")} value={fields.divisionId} onChange={set("divisionId")}>
+          <label htmlFor="pr-divisionId" className={labelClass}>Division</label>
+          <select id="pr-divisionId" name="divisionId" required className={cls("divisionId")} value={fields.divisionId} onChange={set("divisionId")}>
             {divisions.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -203,21 +253,22 @@ export function NewPRForm({ divisions, aiEnabled = false }: { divisions: { id: s
           </select>
         </div>
         <div>
-          <label className={labelClass}>Category</label>
-          <input name="category" required className={cls("category")} placeholder="e.g. Raw Materials, IT Equipment" value={fields.category} onChange={set("category")} />
+          <label htmlFor="pr-category" className={labelClass}>Category</label>
+          <input id="pr-category" name="category" required className={cls("category")} placeholder="e.g. Raw Materials, IT Equipment" value={fields.category} onChange={set("category")} />
         </div>
         <div>
-          <label className={labelClass}>Item description</label>
-          <textarea name="itemDescription" required rows={3} className={cls("itemDescription")} value={fields.itemDescription} onChange={set("itemDescription")} />
+          <label htmlFor="pr-itemDescription" className={labelClass}>Item description</label>
+          <textarea id="pr-itemDescription" name="itemDescription" required rows={3} className={cls("itemDescription")} value={fields.itemDescription} onChange={set("itemDescription")} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Quantity</label>
-            <input name="quantity" type="number" min="0.01" step="0.01" required className={cls("quantity")} value={fields.quantity} onChange={set("quantity")} />
+            <label htmlFor="pr-quantity" className={labelClass}>Quantity</label>
+            <input id="pr-quantity" name="quantity" type="number" min="0.01" step="0.01" required className={cls("quantity")} value={fields.quantity} onChange={set("quantity")} />
           </div>
           <div>
-            <label className={labelClass}>Estimated unit cost (₹)</label>
+            <label htmlFor="pr-estimatedUnitCost" className={labelClass}>Estimated unit cost (₹)</label>
             <input
+              id="pr-estimatedUnitCost"
               name="estimatedUnitCost"
               type="number"
               min="0.01"
@@ -235,8 +286,8 @@ export function NewPRForm({ divisions, aiEnabled = false }: { divisions: { id: s
           </p>
         )}
         <div>
-          <label className={labelClass}>Justification (required above threshold)</label>
-          <textarea name="justification" rows={2} className={cls("justification")} value={fields.justification} onChange={set("justification")} />
+          <label htmlFor="pr-justification" className={labelClass}>Justification (required above threshold)</label>
+          <textarea id="pr-justification" name="justification" rows={2} className={cls("justification")} value={fields.justification} onChange={set("justification")} />
         </div>
 
         {ai && (
@@ -258,10 +309,25 @@ export function NewPRForm({ divisions, aiEnabled = false }: { divisions: { id: s
           </div>
         )}
 
-        {state?.error && <p className="text-sm text-danger">{state.error}</p>}
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving..." : "Save as Draft"}
-        </Button>
+        {errorText && (
+          <p role="alert" className="text-sm text-danger">
+            {errorText}
+          </p>
+        )}
+        {edit ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" disabled={pending} onClick={() => (intent.current = "submit")}>
+              {pending ? "Saving…" : edit.returned ? "Save and resubmit" : "Save and submit"}
+            </Button>
+            <Button type="submit" variant="secondary" disabled={pending} onClick={() => (intent.current = "save")}>
+              Save changes
+            </Button>
+          </div>
+        ) : (
+          <Button type="submit" disabled={pending}>
+            {pending ? "Saving…" : "Save as draft"}
+          </Button>
+        )}
       </form>
     </>
   );

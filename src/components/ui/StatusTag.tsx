@@ -10,16 +10,37 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
   WITHDRAWN: { label: "Withdrawn", color: "var(--color-graphite)" },
   ISSUED: { label: "Issued", color: "var(--color-success)" },
   DELIVERED: { label: "Delivered", color: "var(--color-success)" },
+  OVERDUE: { label: "Overdue", color: "var(--color-danger)" },
 };
 
-export function StatusTag({ status }: { status: string }) {
+export function statusLabel(status: string) {
+  return STATUS_META[status]?.label ?? status;
+}
+
+/**
+ * `dot` (default): coloured dot + coloured text, for dense tables.
+ * `pill`: tinted capsule, for a page header where the status is the headline.
+ */
+export function StatusTag({ status, variant = "dot" }: { status: string; variant?: "dot" | "pill" }) {
   const meta = STATUS_META[status] ?? { label: status, color: "var(--color-graphite)" };
-  return (
-    <span className="inline-flex items-center gap-1.5 text-sm">
+  if (variant === "pill") {
+    return (
       <span
-        className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
-        style={{ backgroundColor: meta.color }}
-      />
+        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium"
+        style={{
+          color: meta.color,
+          borderColor: `color-mix(in srgb, ${meta.color} 28%, transparent)`,
+          backgroundColor: `color-mix(in srgb, ${meta.color} 8%, var(--color-surface))`,
+        }}
+      >
+        <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: meta.color }} />
+        {meta.label}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm whitespace-nowrap">
+      <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
       <span style={{ color: meta.color }}>{meta.label}</span>
     </span>
   );
