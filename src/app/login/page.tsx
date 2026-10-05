@@ -1,15 +1,17 @@
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth-context";
-import { LoginForm } from "./LoginForm";
+import { LoginForm, type DemoAccount } from "./LoginForm";
 import { Aurora } from "./Aurora";
+import { DEMO_PASSWORD } from "@/db/ids";
 
-const DEMO_ACCOUNTS = [
-  { email: "priya@vendra.demo", role: "Employee" },
-  { email: "rahul@vendra.demo", role: "Division Manager" },
-  { email: "meera@vendra.demo", role: "Finance" },
-  { email: "arjun@vendra.demo", role: "Procurement" },
-  { email: "zara@vendra.demo", role: "Auditor" },
-  { email: "admin@vendra.demo", role: "Admin" },
+// One per role, in the order a request moves through the workflow.
+const DEMO_ACCOUNTS: DemoAccount[] = [
+  { email: "priya@vendra.demo", name: "Priya Sharma", role: "Employee", does: "Raises requests" },
+  { email: "rahul@vendra.demo", name: "Rahul Mehta", role: "Division Manager", does: "First approval" },
+  { email: "meera@vendra.demo", name: "Meera Iyer", role: "Finance", does: "Final approval" },
+  { email: "arjun@vendra.demo", name: "Arjun Nair", role: "Procurement", does: "Issues POs" },
+  { email: "zara@vendra.demo", name: "Zara Khan", role: "Auditor", does: "Read-only, audit" },
+  { email: "admin@vendra.demo", name: "System Admin", role: "Admin", does: "Users & setup only" },
 ];
 
 export default async function LoginPage() {
@@ -62,23 +64,7 @@ export default async function LoginPage() {
             <h2 className="text-lg font-semibold text-ink">Sign in</h2>
             <p className="text-sm text-graphite mt-1">Enter your credentials to access the console.</p>
           </div>
-          <div className="bg-surface/85 backdrop-blur-md border border-line rounded-lg p-6 shadow-[0_8px_30px_-12px_rgba(21,24,33,0.25)] panel-interactive">
-            <LoginForm />
-          </div>
-          <div className="mt-6 rounded-lg border border-line bg-surface/70 backdrop-blur-md p-4">
-            <p className="text-xs font-medium text-graphite mb-2">Demo accounts · password vendra123</p>
-            <div className="flex flex-wrap gap-1.5">
-              {DEMO_ACCOUNTS.map((acct) => (
-                <span
-                  key={acct.email}
-                  className="inline-flex items-center gap-1 rounded-full border border-line bg-page-bg px-2.5 py-1 text-[11px] text-graphite font-mono"
-                >
-                  {acct.email}
-                  <span className="text-graphite/60 font-sans">· {acct.role}</span>
-                </span>
-              ))}
-            </div>
-          </div>
+          <LoginForm demoAccounts={DEMO_ACCOUNTS} demoPassword={DEMO_PASSWORD} />
         </div>
       </div>
     </div>

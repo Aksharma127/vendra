@@ -29,6 +29,9 @@ divisions, four vendors, and six users. Password for all: `vendra123`.
 | zara@vendra.demo | Auditor | Read-only, audit trail + reports |
 | admin@vendra.demo | Admin | Structural admin only — no visibility into requests, orders, or spend (by design) |
 
+On the sign-in page each of these is a button: tap one to sign straight in
+as that person. The password field has a show/hide toggle.
+
 **Demo history (`npm run db:seed:demo`):** adds seven more colleagues
 (kabir, ananya, vikram, sana, dev, ishaan, nisha `@vendra.demo`, same
 password), five more vendors, and ~400 purchase requests / ~300 purchase
@@ -182,6 +185,32 @@ decision, not an oversight:
   NextAuth — simpler to reason about and just as secure for this scope,
   since the session ID is an unguessable UUID and the cookie is
   `httpOnly`/`secure`/`sameSite=lax`.
+
+## Sign-in and passwords
+
+- **Show/hide password** (`src/components/ui/PasswordInput.tsx`), used on the
+  sign-in page and in Admin → Users. The toggle never submits the form,
+  keeps focus and the cursor position (so a phone keyboard stays open), is a
+  proper toggle for screen readers (`aria-pressed`, `aria-controls`), warns
+  when Caps Lock is on, and flips back to hidden when the form submits (so
+  password managers still offer to save) or when you switch tabs.
+- **Wrong email and wrong password look identical**, in wording *and* in
+  timing: unknown emails are checked against a decoy bcrypt hash, so the
+  response time no longer reveals which emails have accounts (it was ~60ms
+  vs ~155ms before).
+- **Failed sign-ins are throttled** (`src/lib/login-throttle.ts`): 8 per
+  email per IP and 40 per IP across all emails, per 15 minutes. Keyed on IP
+  as well as email so nobody can lock a real user out of their own account
+  from somewhere else. In-memory, so it's per server instance; a shared
+  store is the upgrade for real internet traffic.
+- **A failed sign-in keeps the email** you typed, clears the password and
+  puts the cursor back in it.
+- **Admin → Users → Create** generates a random 14-character temporary
+  password from the browser's secure random source, leaving out look-alike
+  characters (0/O, 1/l/I), with a Copy button. The fields are marked
+  `new-password` so the browser doesn't autofill the admin's own login into
+  them. Creating the user and granting company access happen in one
+  transaction, and a failed create (e.g. email taken) keeps what was typed.
 
 ## Architecture notes worth knowing before you demo this
 

@@ -1,7 +1,7 @@
 "use server";
 
 import "server-only";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
@@ -105,21 +105,34 @@ export async function createUserAction(
   if (!name || !email || password.length < 6) {
     return { error: "Name, email, and a password of at least 6 characters are required" };
   }
-
-  const passwordHash = await bcrypt.hash(password, 10);
-  let userId: string;
-  try {
-    const [created] = await db.insert(users).values({ name, email, passwordHash }).returning();
-    userId = created.id;
-  } catch {
-    return { error: "A user with this email already exists" };
+  if (password.length > 256 || name.length > 200 || email.length > 320) {
+    return { error: "That name, email or password is too long" };
   }
 
-  if (companyIds.length > 0) {
-    await db
-      .insert(userCompanyAccess)
-      .values(companyIds.map((companyId) => ({ userId, companyId })))
-      .onConflictDoNothing();
+  // Only grant access to companies that actually exist (a tampered form could
+  // send anything), and create the user + access in one transaction so a
+  // failure can't leave a user with no access, or access with no user.
+  const validCompanyIds = companyIds.length
+    ? (await db.select({ id: companies.id }).from(companies).where(inArray(companies.id, companyIds))).map((c) => c.id)
+    : [];
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  try {
+    await db.transaction(async (tx) => {
+      const [created] = await tx.insert(users).values({ name, email, passwordHash }).returning({ id: users.id });
+      if (validCompanyIds.length > 0) {
+        await tx
+          .insert(userCompanyAccess)
+          .values(validCompanyIds.map((companyId) => ({ userId: created.id, companyId })))
+          .onConflictDoNothing();
+      }
+    });
+  } catch (err) {
+    // 23505 = unique_violation (the email is already taken).
+    if ((err as { code?: string; cause?: { code?: string } })?.code === "23505" || (err as { cause?: { code?: string } })?.cause?.code === "23505") {
+      return { error: "A user with this email already exists" };
+    }
+    throw err;
   }
 
   revalidatePath("/admin/users");

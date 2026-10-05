@@ -44,8 +44,16 @@ body {
   font-family: var(--font-sans);
 }
 
-* {
-  border-color: var(--color-line);
+/* Default border colour. Must live in the base layer: un-layered CSS beats
+   every Tailwind utility, so as a bare `* {}` rule it silently overrode every
+   border-colour class in the app (border-danger, focus:border-accent, ...). */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop {
+    border-color: var(--color-line);
+  }
 }
 
 /* Base skeleton colour outside any media query, so placeholders stay visible
@@ -231,11 +239,15 @@ body {
   border-color: color-mix(in srgb, var(--color-line) 55%, var(--color-graphite));
 }
 
-/* Refined focus ring, used in place of the default browser outline */
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-  border-radius: 2px;
+/* Refined focus ring, used in place of the default browser outline. In the
+   base layer so components can override it (focus-visible:outline-none +
+   their own ring) - un-layered, it won over every utility. No border-radius
+   here: forcing 2px squared off rounded controls whenever they had focus. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
 }
 
 ::selection {
@@ -257,4 +269,11 @@ body {
 }
 *::-webkit-scrollbar-thumb:hover {
   background: var(--color-graphite);
+}
+
+/* Edge/IE draw their own "reveal password" eye inside password inputs. Our
+   PasswordInput has its own toggle, so hide the native one to avoid two. */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
 }
